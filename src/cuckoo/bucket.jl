@@ -1,3 +1,6 @@
+# This simply creates a "new" hash function to create fingerprints.
+const FINGERPRINT_SALT = 0x7afb47f99881a598
+
 struct Bucket{F}
     data::UInt128
 end
@@ -10,10 +13,21 @@ mask(x::Bucket{F}) where {F} = UInt128(1) << 4F - UInt128(1)
 fingermask(::Type{Bucket{F}}) where {F} = UInt128(1) << F - UInt128(1)
 fingermask(x::Bucket{F}) where {F} = fingermask(typeof(x))
 
+# Fingerprint returns a UInt128 number in 1:2^F-1
+function imprint(x, ::Type{Bucket{F}}) where {F}
+    h = hash(x, FINGERPRINT_SALT)
+    fingerprint = h & UInt(1 << F - 1)
+    while fingerprint == typemin(UInt64) # Must not be zero
+        h = h >> F + 1 # We add one to avoid infinite loop
+        fingerprint = h & UInt(1 << F - 1)
+    end
+    return UInt128(fingerprint)
+end
+
 Base.:(==)(x::Bucket{F}, y::Bucket{F}) where {F} = x.data == y.data
 Base.:(==)(x::Bucket, y::Bucket) = false
 
-# Sorted lists of all UInt16 where each block of 4 bits are themselves sorted
+# Sorted array of all UInt16 where each block of 4 bits are themselves sorted
 let x = Set{UInt16}()
     for a in 0:15, b in 0:15, c in 0:15, d in 0:15
         k,m,n,p = sort!([a, b, c, d])
@@ -55,20 +69,22 @@ end
     return y
 end
 
-# Encode to NONCODINGBITS-CODINGBITS-INDEX
-# Right now returns UInt128
-function encode(bucket::Bucket{F}) where {F}
+# Encode to UInt128 with bits in this order: NONCODINGBITS-CODINGBITS-INDEX
+# Index is I-1 where I is the index in PREFIXES which encodes the "highbits"
+# of the decoded value
+@inline function encode(bucket::Bucket{F}) where {F}
     sorted_bucket = sort_bucket(bucket)
     high_bits = highest_bits(sorted_bucket)
 
     # The encoded bits must be able to be zero, so here they are subtracted 1
-    index = searchsortedfirst(PREFIXES, high_bits) - 1
+    index = reinterpret(UInt64, searchsortedfirst(PREFIXES, high_bits) - 1)
     result = lowest_bits(sorted_bucket)
     result = result << 12 | UInt128(index)
     return result
 end
 
-function decode(x::UInt128, ::Val{F}) where {F}
+# Exactly inverse of encode.
+@inline function decode(x::UInt128, ::Val{F}) where {F}
     lowbitmask = fingermask(Bucket{F}) >> 4
     highbitmask = UInt128(15)
     @inbounds high_bits = PREFIXES[x & UInt64(4095) + 1]
@@ -111,16 +127,6 @@ end
 
 Base.isempty(x::Bucket) = x.data & mask(x) == typemin(UInt128)
 
-# This is true if none of the 4 fingerprints are zero
-function isfull(x::Bucket{F}) where {F}
-    y = true
-    y &= x.data & fingermask(x) != typemin(UInt128)
-    y &= x.data >> F & fingermask(x) != typemin(UInt128)
-    y &= x.data >> 2F & fingermask(x) != typemin(UInt128)
-    y &= x.data >> 3F & fingermask(x) != typemin(UInt128)
-    return y
-end
-
 # Produces only nonzero fingerprints
 function Base.iterate(bucket::Bucket{F}, state=(bucket.data, 1)) where {F}
     data, i = state
@@ -136,10 +142,10 @@ function Base.iterate(bucket::Bucket{F}, state=(bucket.data, 1)) where {F}
     end
 end
 
-# # Inserts a fingerprint into the leftmost empty slot. If the fingerprint is
-# # seen, change nothing. Return the changed bucket and whether or not it was
-# # successful (ie. inserted or already in the bucket)
-function Base.insert!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
+# Inserts a fingerprint into the leftmost empty slot. If the fingerprint is
+# seen, change nothing. Return the changed bucket and whether or not it was
+# successful (ie. inserted or already in the bucket)
+function putinbucket!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
     y = bucket.data
     success = false
     if y >> 3F & fingermask(bucket) == typemin(UInt128) || y >> 3F & fingermask(bucket) == fingerprint
@@ -158,20 +164,20 @@ function Base.insert!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
     return Bucket{F}(y), success
 end
 
-# # Insert value into bucket, kicking out existing value.
-# # Returns bucket, kicked_out_fingerprint
+# Insert value into bucket, kicking out existing value.
+# Returns bucket, kicked_out_fingerprint
 function kick!(bucket::Bucket{F}, fingerprint::UInt128, bucketindex::Int) where {F}
     y = bucket.data
     shift = 4F - bucketindex*F
     mask = fingermask(bucket) << shift
     existing = (y & mask) >> shift
-    y &= ~mask
-    y |= fingerprint << shift
+    y &= ~mask # Zero out bits of existing fingerprint
+    y |= fingerprint << shift # Now add in the new fingerprint
     return Bucket{F}(y), existing
 end
 
 # Creates a new bucket with the fingerprint deleted from it, if it was in it
-function Base.delete!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
+function Base.pop!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
     y = bucket.data
     if y >> 3F & fingermask(bucket) == fingerprint
         return Bucket{F}(y & ~(fingermask(bucket) << 3F))

@@ -7,8 +7,10 @@ export
     AbstractCuckooFilter,
     FastCuckoo,
     SmallCuckoo,
-    false_positive_rate,
+    fprof,
+    capacityof,
     loadfactor,
+    constrain,
     # From CountMinSketch
     CountMinSketch,
     add!,

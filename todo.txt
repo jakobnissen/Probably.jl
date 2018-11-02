@@ -1,3 +1,8 @@
+Cuckoo:
+  Remove function "bucketsize" and all that depends on it.
+  Change the interface from making the filter to giving:
+    (F, nfingerprints), (fpr, mem, capacity)
+
 For bloom filter, countminsketch, make a COMMON constructor interface.
 Need to be able to specify any two of three: fpr, memory consumption, capacity.
 
