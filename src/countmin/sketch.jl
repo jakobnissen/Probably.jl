@@ -21,7 +21,7 @@ julia> sketch["hello"]
 struct CountMinSketch{T<:Unsigned}
     len::Int # Cached for speed
     width::Int # Cached for speed
-    matrix::Array{T,2}
+    matrix::Matrix{T}
 
     function CountMinSketch{T}(len, ntables) where {T<:Unsigned}
         if len < 1 || ntables < 2
@@ -160,5 +160,5 @@ function Base.getindex(sketch::CountMinSketch{T}, x) where {T}
         @inbounds m = sketch.matrix[index(sketch, h), ntable]
         count = min(count, m)
     end
-    return Int(count)
+    return count
 end

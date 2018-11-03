@@ -24,7 +24,10 @@ function imprint(x, ::Type{Bucket{F}}) where {F}
     return UInt128(fingerprint)
 end
 
-Base.:(==)(x::Bucket{F}, y::Bucket{F}) where {F} = x.data == y.data
+function Base.:(==)(x::Bucket{F}, y::Bucket{F}) where {F}
+    x.data & fingermask(x) == y.data & fingermask(y)
+end
+
 Base.:(==)(x::Bucket, y::Bucket) = false
 
 # Sorted array of all UInt16 where each block of 4 bits are themselves sorted

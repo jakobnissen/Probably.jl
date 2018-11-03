@@ -16,7 +16,6 @@ function randbucket(F)
     return Probably.Bucket{F}(parse(UInt128, join(b), base=2))
 end
 
-
 function inefficient_sort_bucket(x::UInt128, F)
     mask = Probably.fingermask(Probably.Bucket{F}) # already tested elsewhere
     a, b, c, d = x & mask, x >> F & mask, x >> 2F & mask, x >> 3F & mask
@@ -76,7 +75,7 @@ end # Misc Cuckoo Bucket
 
 @testset "Imprint" begin
 fingerprint_ok = true
-for i in 1:10000
+for i in 1:100
     fingerprint_ok &= Probably.imprint(rand(Int), Probably.Bucket{4}) != zero(UInt128)
 end
 @test fingerprint_ok
@@ -84,7 +83,7 @@ end # Imprint
 
 @testset "Sort_bucket" begin
 sort_bucket_ok = true
-for i in 1:10000
+for i in 1:100
     x = rand(UInt128)
     F = rand(4:32)
     sort_bucket_ok &= Probably.sort_bucket(Probably.Bucket{F}(x)) == inefficient_sort_bucket(x, F)
@@ -124,7 +123,7 @@ end
     encode_lessbits = true
     encode_sameresult = true
 
-    for i in 1:1000
+    for i in 1:100
         x = rand(UInt128)
         F = rand(4:32)
         before = inefficient_sort_bucket(x, F)
@@ -143,7 +142,7 @@ end # Encoding/decoding
 
 @testset "Fingerprint membership" begin
     membership_ok = true
-    for i in 1:1000
+    for i in 1:100
         x = typemin(UInt128)
         F = rand(4:32)
         f = rand_fingerprint(F)
@@ -199,7 +198,7 @@ end # put in bucket
 
 @testset "Kick bucket" begin
     kick_bucket_ok = true
-    for i in 1:1000
+    for i in 1:100
         x = rand(UInt128)
         pos = rand(1:4)
         F = rand(4:32)

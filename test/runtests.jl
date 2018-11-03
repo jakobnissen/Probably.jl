@@ -9,6 +9,7 @@ end
 
 @testset "Cuckoo filter" begin
 include("cuckoo_bucket.jl")
+include("cuckoo_filter.jl")
 end
 
 end # module

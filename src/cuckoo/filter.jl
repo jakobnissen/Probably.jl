@@ -303,7 +303,7 @@ function Base.getindex(x::AbstractCuckooFilter, i)
     unsafe_getindex(x, i)
 end
 
-function Base.setindex!(x::AbstractCuckooFilter{F}, val::Bucket{F}, i) where {F}
+function Base.setindex!(x::AbstractCuckooFilter, val::Bucket, i)
     @boundscheck checkbounds(x, i)
     unsafe_setindex!(x, val, i)
 end
