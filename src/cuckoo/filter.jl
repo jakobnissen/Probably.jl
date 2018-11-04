@@ -1,3 +1,4 @@
+module t
 ###### Description
 #
 # This is an implementation of CuckooFilter
@@ -78,7 +79,7 @@ Memory consumption is approximately 64 + `len` * `F` / 2 bytes.
 mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
     nbuckets::Int64
     mask::UInt64
-    ejected::UInt128 # Fingerprint ejected from filter (guarantees no false negatives)
+    ejected::UInt64 # Fingerprint ejected from filter (guarantees no false negatives)
     ejectedindex::UInt64
     data::Vector{UInt8}
 
@@ -91,9 +92,10 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # The length also contains the necessary padding to prevent unsafe_writebits!
         # from reading off the edge of the array.
-        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + sizeof(Bucket))
+        padding = ifelse(F ≤ 16, 8, 16)
+        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
         mask = UInt64(nbuckets) - 1
-        new(nbuckets, mask, typemin(UInt128), typemin(UInt64), data_array)
+        new(nbuckets, mask, typemin(UInt64), typemin(UInt64), data_array)
     end
 end
 
@@ -110,7 +112,7 @@ Memory consumption is approximately 64 + `len` * `F` / 2 bytes.
 mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
     nbuckets::Int64
     mask::UInt64
-    ejected::UInt128 # Fingerprint ejected from filter (guarantees no false negatives)
+    ejected::UInt64 # Fingerprint ejected from filter (guarantees no false negatives)
     ejectedindex::UInt64
     data::Vector{UInt8}
 
@@ -123,15 +125,30 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # The length also contains the necessary padding to prevent unsafe_writebits!
         # from reading off the edge of the array.
-        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + sizeof(Bucket))
+        padding = ifelse(F ≤ 16, 8, 16)
+        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
         mask = UInt64(nbuckets) - 1
-        new(nbuckets, mask, typemin(UInt128), typemin(UInt64), data_array)
+        new(nbuckets, mask, typemin(UInt64), typemin(UInt64), data_array)
     end
 end
 
-Base.eltype(::Type{FastCuckoo{F}}) where {F} = Bucket{F}
-Base.eltype(::Type{SmallCuckoo{F}}) where {F} = Bucket{F+1}
-BucketF(::Type{Bucket{F}}) where {F} = F
+function Base.eltype(::Type{FastCuckoo{F}}) where {F}
+    if F ≤ 16
+        return Bucket64{F}
+    else
+        return Bucket128{F}
+    end
+end
+
+function Base.eltype(::Type{SmallCuckoo{F}}) where {F}
+    if F ≤ 16
+        return Bucket64{F+1}
+    else
+        return Bucket128{F+1}
+    end
+end
+
+BucketF(::Type{<:AbstractBucket{F}}) where {F} = F
 
 function Base.show(io::IO, x::AbstractCuckooFilter{F}) where {F}
     print(io, lastindex(x), "-bucket ", typeof(x))
@@ -193,7 +210,7 @@ true
 Base.isempty(x::AbstractCuckooFilter) = all(i == 0x00 for i in x.data)
 
 function Base.empty!(x::AbstractCuckooFilter)
-    x.ejected = typemin(UInt128)
+    x.ejected = typemin(UInt64)
     x.ejectedindex = typemin(UInt64)
     fill!(x.data, 0x00)
     return x
@@ -244,54 +261,54 @@ end
 # Should be depedent on i and fingerprint and be inbounds. Furthermore, must
 # always hold that otherindex(x, otherindex(x, i, f), f) == i.
 # It's this latter property that constrains filters to having power-of-two len.
-function otherindex(filter::AbstractCuckooFilter, i::UInt64, fingerprint::UInt128)
+function otherindex(filter::AbstractCuckooFilter, i::UInt64, fingerprint)
     return ((i - 1) ⊻ hash(fingerprint)) & filter.mask + 1
 end
 
 # Reads the ith chunk of bits `nbits` in size from `array`
 # E.g. unsafe_readbits(A, Val(11), 3) reads exactly the 23:33rd bits of A
-function unsafe_readbits(array::Array{UInt8}, ::Val{nbits}, i) where {nbits}
+function unsafe_readbits(array::Array{UInt8}, T::Type{<:Unsigned}, ::Val{nbits}, i) where {nbits}
     bitoffset = (i-1)*nbits
     byteoffset = bitoffset >>> 3
-    data = unsafe_load(Ptr{UInt128}(pointer(array, byteoffset + 1)), 1)
+    data = unsafe_load(Ptr{T}(pointer(array, byteoffset + 1)), 1)
     data >>>= bitoffset & 7
     return data
 end
 
 function unsafe_getindex(x::FastCuckoo{F}, i) where {F}
     # A Bucket{F} contains 4F bits
-    return Bucket{F}(unsafe_readbits(x.data, Val(4F), i))
+    return eltype(x)(unsafe_readbits(x.data, eltype(eltype(x)), Val(4F), i))
 end
 
 function unsafe_getindex(x::SmallCuckoo{F}, i) where {F}
     # A Bucket{F+1} is encoded in 4F bits
-    return decode(unsafe_readbits(x.data, Val(4F), i), Val(F+1))
+    return decode(unsafe_readbits(x.data, eltype(eltype(x)), Val(4F), i), eltype(x))
 end
 
 # Writes the first nbits of val to the ith chunk of nbits in array
 # E.g. unsafe_writebits!(A, Val(11), 3, typemax(UInt128))
 # writes exactly 11 ones to the 23:33rd bits of A
-function unsafe_writebits!(array::Array{UInt8}, ::Val{nbits}, i, val::UInt128) where {nbits}
+function unsafe_writebits!(array::Array{UInt8}, T::Type{<:Unsigned}, ::Val{nbits}, i, val) where {nbits}
     bitoffset = (i-1)*nbits
     byteoffset = bitoffset >>> 3
-    p = Ptr{UInt128}(pointer(array, byteoffset + 1))
+    p = Ptr{T}(pointer(array, byteoffset + 1))
     # We overwrite the unused bits of val with bits from array in order to
     # not overwrite array with unsused bits from val that are different
     data = unsafe_load(p, 1)
     bitshift = bitoffset & 7
-    bitmask = (UInt128(1) << nbits - UInt128(1)) << bitshift
+    bitmask = (T(1) << nbits - T(1)) << bitshift
     data &= ~bitmask
     data |= bitmask & (val << bitshift)
     unsafe_store!(p, data, 1)
 end
 
-function unsafe_setindex!(x::FastCuckoo{F}, val::Bucket{F}, i) where {F}
-    unsafe_writebits!(x.data, Val(4F), i, val.data)
+function unsafe_setindex!(x::FastCuckoo{F}, val::AbstractBucket{F}, i) where {F}
+    unsafe_writebits!(x.data, eltype(eltype(x)), Val(4F), i, val.data)
 end
 
-function unsafe_setindex!(x::SmallCuckoo{F1}, val::Bucket{F2}, i) where {F1, F2}
+function unsafe_setindex!(x::SmallCuckoo{F1}, val::AbstractBucket{F2}, i) where {F1, F2}
     F1 + 1 == F2 || throw(ArgumentError("Should never happen"))
-    unsafe_writebits!(x.data, Val(4F1), i, encode(val))
+    unsafe_writebits!(x.data, eltype(eltype(x)), Val(4F1), i, encode(val))
 end
 
 function Base.checkbounds(x::AbstractCuckooFilter, i)
@@ -303,13 +320,13 @@ function Base.getindex(x::AbstractCuckooFilter, i)
     unsafe_getindex(x, i)
 end
 
-function Base.setindex!(x::AbstractCuckooFilter, val::Bucket, i)
+function Base.setindex!(x::AbstractCuckooFilter, val::AbstractBucket, i)
     @boundscheck checkbounds(x, i)
     unsafe_setindex!(x, val, i)
 end
 
 # Puts a fingerprint into a Bucket at index `i` in filter.
-function putinfilter!(x::AbstractCuckooFilter, i, fingerprint::UInt128)
+function putinfilter!(x::AbstractCuckooFilter, i, fingerprint)
     bucket = unsafe_getindex(x, i)
     newbucket, success = putinbucket!(bucket, fingerprint)
     unsafe_setindex!(x, newbucket, i)
@@ -318,7 +335,7 @@ end
 
 # Forcibly put a fingerprint into a bucket at index `i` in filter.
 # returns the fingerprint ejected to make room
-function kick!(x::AbstractCuckooFilter, i, fingerprint::UInt128, bucketindex::Int)
+function kick!(x::AbstractCuckooFilter, i, fingerprint, bucketindex::Int)
     bucket = unsafe_getindex(x, i)
     newbucket, newfingerprint = kick!(bucket, fingerprint, bucketindex)
     unsafe_setindex!(x, newbucket, i)
@@ -327,7 +344,7 @@ end
 
 function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
     # If filter is closed, don't even attempt to insert it.
-    if filter.ejected != typemin(UInt128)
+    if filter.ejected != typemin(eltype(eltype(filter)))
         return fingerprint == filter.ejected
     end
 
@@ -424,11 +441,11 @@ function Base.pop!(filter::AbstractCuckooFilter{F}, key) where {F}
 
     # Having deleted an object, we can "open" a closed filter
     # by pushing the ejected value back into the buckets and zeroing the ejected
-    if filter.ejected != typemin(UInt128)
+    if filter.ejected != typemin(UInt64)
         sucess = pushfingerprint(filter, filter.ejected, filter.ejectedindex)
         if sucess
-            filter.ejected = typemin(UInt128)
-            filter.ejectedindex = typemin(UInt128)
+            filter.ejected = typemin(UInt64)
+            filter.ejectedindex = typemin(UInt64)
         end
     end
     return filter
@@ -603,4 +620,30 @@ function constrain(T::Type{<:AbstractCuckooFilter}; fpr=nothing, memory=nothing,
     else
         return mem_fpr(T, memory, fpr)
     end
+end
+
+function bm(a)
+    println(loadfactor(a))
+    for i in 0:15
+        @time for j in i*1<<24:(i+1)*(1<<24)-1
+            push!(a, j)
+        end
+        println(loadfactor(a))
+    end
+end
+
+function addn(a, n)
+    for i in 1:n
+        push!(a, i)
+    end
+end
+
+function inn(a, n)
+    x = 0
+    for i in 1:n
+        x += ifelse(i in a, 1, 0)
+    end
+    x
+end
+
 end
