@@ -72,15 +72,21 @@ Base.delete!(filter::AbstractCuckooFilter, item)
 
 ### Misc operations
 
+*Note: Cuckoo filters supports the following operations, which have no cuckoo-specific docstring because they behave as stated in the documentation in Base:*
+
+```
+Base.copy!
+Base.copy
+Base.sizeof # This one includes the underlying array
+```
+
 ```@docs
 Base.isempty(filter::AbstractCuckooFilter)
 Base.empty!(filter::AbstractCuckooFilter)
 Base.union!(filter::AbstractCuckooFilter)
 Base.union(filter::AbstractCuckooFilter)
-Base.copy!(dst::AbstractCuckooFilter, src::AbstractCuckooFilter)
-Base.copy(filter::AbstractCuckooFilter)
 loadfactor(filter::AbstractCuckooFilter)
 fprof
 capacityof
-constrain
+constrain(::Type{AbstractCuckooFilter})
 ```

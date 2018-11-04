@@ -194,3 +194,11 @@ function Base.pop!(bucket::Bucket{F}, fingerprint::UInt128) where {F}
         return bucket
     end
 end
+
+function ff(a)
+    isin = 0
+    for i in 1<<14:1<<25
+        isin += ifelse(i in a, 1, 0)
+    end
+    return isin
+end

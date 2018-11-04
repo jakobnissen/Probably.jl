@@ -1,0 +1,2 @@
+UInt128 is just too slow for CuckooFilter, and rarely used. Possible to let it "smartly" choose
+UInt128 vs UInt64 given F?

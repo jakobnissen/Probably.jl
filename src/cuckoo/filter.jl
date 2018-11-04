@@ -483,6 +483,8 @@ Get the total RAM use of the cuckoo filter, including the underlying array.
 """
 Base.sizeof(x::AbstractCuckooFilter) = 48 + sizeof(x.data)
 
+# The 0.95 constant is approximately how full a filter can be given MAX_KICKS = 512
+# Perhaps a little conservative but that's okay
 """
     capacityof(filter::AbstractCuckooFilter)
 
@@ -490,8 +492,6 @@ Estimate the number of distinct elements that can be pushed to the filter before
 adding more will fail. Since push failures are probabilistic, this is not accurate,
 but for filters with a capacity of thousands or more, this is rarely more than 1% off.
 """
-# The 0.95 constant is approximately how full a filter can be given MAX_KICKS = 512
-# Perhaps a little conservative but that's okay
 capacityof(x::AbstractCuckooFilter) = round(Int, 0.95 * 4 * x.nbuckets, RoundUp)
 
 # Probability of false positives given a completely full filter.

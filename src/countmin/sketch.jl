@@ -33,6 +33,15 @@ end
 
 CountMinSketch(len, ntables) = CountMinSketch{UInt8}(len, ntables)
 
+function Base.:(==)(x::CountMinSketch{T}, y::CountMinSketch{T}) where {T}
+    if x.len != y.len || x.width != y.width
+        return false
+    end
+    return all(i == j for (i,j) in zip(x.matrix, y.matrix))
+end
+
+Base.:(==)(x::CountMinSketch{T1}, y::CountMinSketch{T2}) where {T1, T2} = false
+
 function Base.show(io::IO, sketch::CountMinSketch{T}) where {T}
     print(io, "CountMinSketch{$T}", size(sketch.matrix))
 end
