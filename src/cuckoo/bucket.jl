@@ -37,13 +37,11 @@ function imprint(x, T::Type{<:AbstractBucket{F}}) where {F}
     return eltype(T)(fingerprint)
 end
 
-
 function Base.:(==)(x::AbstractBucket{F}, y::AbstractBucket{F}) where {F}
     x.data & fingermask(x) == y.data & fingermask(y)
 end
 
 Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
-
 
 # Sorted array of all UInt16 where each block of 4 bits are themselves sorted
 let x = Set{UInt16}()

@@ -498,7 +498,7 @@ end
 
 Get the total RAM use of the cuckoo filter, including the underlying array.
 """
-Base.sizeof(x::AbstractCuckooFilter) = 48 + sizeof(x.data)
+Base.sizeof(x::AbstractCuckooFilter) = 32 + sizeof(x.data)
 
 # The 0.95 constant is approximately how full a filter can be given MAX_KICKS = 512
 # Perhaps a little conservative but that's okay
@@ -547,7 +547,7 @@ end
 function stats(T::Type{<:AbstractCuckooFilter{F}}, nfingerprints) where {F}
     fpr = fprof(T)
     nbuckets = nfingerprints >>> 2
-    mem = 48 + (((nbuckets)-1)*F) >>> 1 + sizeof(Bucket)
+    mem = 42 + (((nbuckets)-1)*F) >>> 1 + sizeof(Bucket)
     capacity = round(Int, nfingerprints * 0.95, RoundUp)
     return (F=F, nfingerprints=nfingerprints, fpr=fpr, memory=mem, capacity=capacity)
 end
@@ -555,7 +555,7 @@ end
 # Largest filter that's smaller than `mem` and with lower fpr than `fpr`
 function mem_fpr(T::Type{<:AbstractCuckooFilter}, mem, fpr)
     F = minimal_f(T, fpr)
-    mem -= 48 + 16 # constant overhead
+    mem -= 42 + 16 # constant overhead
     nfingerprints = prevpow(2, 8*mem / F)
     if nfingerprints < 4
         throw(ArgumentError("Too little memory"))
@@ -573,7 +573,7 @@ end
 # Largest filter that can hold `capacity` capacity, and smaller than `mem`
 function mem_capacity(T::Type{<:AbstractCuckooFilter}, mem, capacity)
     nfingerprints = max(4, nextpow(2, capacity / 0.95))
-    mem -= 48 + 16 # constant overhead
+    mem -= 42 + 16 # constant overhead
     F = round(Int, 8 * mem / nfingerprints, RoundUp)
     minF, maxF = ifelse(T === FastCuckoo, (4, 32), (5, 31))
     F = min(F, maxF)
@@ -620,30 +620,6 @@ function constrain(T::Type{<:AbstractCuckooFilter}; fpr=nothing, memory=nothing,
     else
         return mem_fpr(T, memory, fpr)
     end
-end
-
-function bm(a)
-    println(loadfactor(a))
-    for i in 0:15
-        @time for j in i*1<<24:(i+1)*(1<<24)-1
-            push!(a, j)
-        end
-        println(loadfactor(a))
-    end
-end
-
-function addn(a, n)
-    for i in 1:n
-        push!(a, i)
-    end
-end
-
-function inn(a, n)
-    x = 0
-    for i in 1:n
-        x += ifelse(i in a, 1, 0)
-    end
-    x
 end
 
 end
