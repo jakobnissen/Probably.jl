@@ -1,4 +1,3 @@
-module t
 ###### Description
 #
 # This is an implementation of CuckooFilter
@@ -17,47 +16,45 @@ module t
 
 # A CuckooFilter can be understood as an array of buckets, stored consecutively in
 # the .data field. Each bucket consists of 4 consecutive fingerprints of F bits each.
-# A bucket is put in an UInt128 - unused bits are noncoding, i.e. have no significance:
-#
-# Structure of a Bucket{F} with F == 12 (12*4/8 bytes = 6 bytes):
-# 0x26de0240554b61fd276b42f8c141c811
-#   XXXXXXXXXXXXXXXXXXXX                            # Noncoding bits
-#                       DDDCCCBBBAAA                # Fingerprints A to D
-# 0x00000000000000000000000000000fff                # fingermask(Bucket{F})
-# 0x00000000000000000000ffffffffffff                # mask(Bucket{F})
-# | 811  41c  8c1  42f |                            # Displayed string in terminal
-#                                                   #(same as fingerprints A to D)
+# A bucket is put in an unsigned integer, either UInt64 or UInt128 depending on F.
+# unused bits are noncoding, i.e. have no significance:
+
+# Structure of a Bucket64{12} (i.e. where F is 12 and encoded in UInt64):
+# 0x276b42f8c141c811                # bucket.data
+#   XXXX                            # Noncoding bits
+#       DDDCCCBBBAAA                # Fingerprints A to D
+# 0x0000000000000fff                # fingermask(Bucket{F})
+# 0x0000ffffffffffff                # mask(Bucket{F})
+# | 811  41c  8c1  42f |            # Displayed string in terminal
+#                                   #(same as fingerprints A to D)
 #
 # If the bucket above is stored in a filter at index 1, the .data field would begin:
-# [0x11, 0xc8, 0x41, 0xc1, 0xf8, 0x42, 0x6b, 0x27, 0xfd ... ]
+# [0x11, 0xc8, 0x41, 0xc1, 0xf8, 0x42, 0x6b, 0x27 ... ]
 # If a new Bucket is inserted at index 2, the noncoding bits of the bucket at index
 # 1 are overwritten with the beginning of the new bucket:
-# [0x11, 0xc8, 0x41, 0xc1, 0xf8, 0x42, 0xa2, 0x99, 0x5e ... ]
-#                                      ^^^^  ^^^^  ^^^^
+# [0x11, 0xc8, 0x41, 0xc1, 0xf8, 0x42, 0xa2, 0x99 ... ]
+#                                      ^^^^  ^^^^
 # Because the .data field only contains integer number of bytes, and UInt128 can
 # contain F=128/4=32, and F=2 leads to 100 % FPR, F must be in 3:32.
 
 ######## SmallCuckoo
 #
-# In a semi-sorted cuckoo filter (SmallCuckoo), the bucket is stored in an encoded form
-# in the .data field. This saves 1 bit per fingerprint. To encode:
+# In a semi-sorted cuckoo filter (SmallCuckoo), the bucket is stored in an encoded
+# form in the .data field. This saves 1 bit per fingerprint. To encode:
 #
-# 0x26de0240554b61fd276b42f8c141c811             # Input bucket
-# 0x000000000000000000008c181142f41c             # Fingerprints sorted
+# 0x276b42f8c141c811             # Input bucket
+# 0x00008c181142f41c             # Fingerprints sorted
 # The 4 highest and F-4 lowest bits per fingerprint can be extracted:
-# 0x00000000000000000000000000004488             # 4 highest bits (call it H)
-# 0x0000000000000000000000001c2f11c1             # F-4 lowest bits
+# 0x0000000000004488             # 4 highest bits (call it H)
+# 0x000000001c2f11c1             # F-4 lowest bits
 # There are only 3876 possible values of 4*4 highest bits, so a value can be
 # stored in 12 bits by searching for the index of PREFIXES that stores it:
-# 0x000000000000000000000000000009f9             # Index-1 to find highest bits
+# 0x00000000000009f9             # Index-1 to find highest bits
 # The 12-bit index and the lowest bits are then concatenated:
-# 0x0000000000000000000001c2f11c19f9             # Encoding of bucket (4 bits saved)
+# 0x000001c2f11c19f9             # Encoding of bucket (4 bits saved)
 #
 # To decode it, simply reverse all the steps. Because one bit is saved, F
 # must be in 3:31. This whole process means the SmallCuckoo is > 2x slower.
-
-# To do:
-# Add tests
 
 include("bucket.jl")
 
@@ -90,8 +87,7 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
             throw(ArgumentError("F must be in 4:32"))
         end
         nbuckets = len >>> 2
-        # The length also contains the necessary padding to prevent unsafe_writebits!
-        # from reading off the edge of the array.
+        # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
         data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
         mask = UInt64(nbuckets) - 1
@@ -123,8 +119,7 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
             throw(ArgumentError("F must be in 3:31"))
         end
         nbuckets = len >>> 2
-        # The length also contains the necessary padding to prevent unsafe_writebits!
-        # from reading off the edge of the array.
+        # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
         data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
         mask = UInt64(nbuckets) - 1
@@ -132,23 +127,8 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
     end
 end
 
-function Base.eltype(::Type{FastCuckoo{F}}) where {F}
-    if F ≤ 16
-        return Bucket64{F}
-    else
-        return Bucket128{F}
-    end
-end
-
-function Base.eltype(::Type{SmallCuckoo{F}}) where {F}
-    if F ≤ 16
-        return Bucket64{F+1}
-    else
-        return Bucket128{F+1}
-    end
-end
-
-BucketF(::Type{<:AbstractBucket{F}}) where {F} = F
+Base.eltype(::Type{FastCuckoo{F}}) where {F} = F ≤ 16 ? Bucket64{F} : Bucket128{F}
+Base.eltype(::Type{SmallCuckoo{F}}) where {F} = F ≤ 16 ? Bucket64{F+1} : Bucket128{F+1}
 
 function Base.show(io::IO, x::AbstractCuckooFilter{F}) where {F}
     print(io, lastindex(x), "-bucket ", typeof(x))
@@ -199,7 +179,7 @@ end
 """
     isempty(x::AbstractCuckooFilter)
 
-Test if the filter contains no elements.
+Test if the filter contains no elements. Guaranteed to be correct.
 
 # Examples
 ```
@@ -209,6 +189,20 @@ true
 """
 Base.isempty(x::AbstractCuckooFilter) = all(i == 0x00 for i in x.data)
 
+"""
+    empty!(x::AbstractCuckooFilter)
+
+Removes all objects from the cuckoo filter, resetting it to initial state.
+
+# Examples
+```
+julia> a = FastCuckoo{12}(1<<12); push!(a, "Hello"); isempty(a)
+false
+
+julia> empty!(a); isempty(a)
+true
+```
+"""
 function Base.empty!(x::AbstractCuckooFilter)
     x.ejected = typemin(UInt64)
     x.ejectedindex = typemin(UInt64)
@@ -265,8 +259,8 @@ function otherindex(filter::AbstractCuckooFilter, i::UInt64, fingerprint)
     return ((i - 1) ⊻ hash(fingerprint)) & filter.mask + 1
 end
 
-# Reads the ith chunk of bits `nbits` in size from `array`
-# E.g. unsafe_readbits(A, Val(11), 3) reads exactly the 23:33rd bits of A
+# This reads the i'th chunk of bits each of size nbits from array into a T.
+# E.g. unsafe_readbits(A, UInt64, Val(11), 3) reads the 23:86rd bits of A to a UInt64
 function unsafe_readbits(array::Array{UInt8}, T::Type{<:Unsigned}, ::Val{nbits}, i) where {nbits}
     bitoffset = (i-1)*nbits
     byteoffset = bitoffset >>> 3
@@ -285,8 +279,8 @@ function unsafe_getindex(x::SmallCuckoo{F}, i) where {F}
     return decode(unsafe_readbits(x.data, eltype(eltype(x)), Val(4F), i), eltype(x))
 end
 
-# Writes the first nbits of val to the ith chunk of nbits in array
-# E.g. unsafe_writebits!(A, Val(11), 3, typemax(UInt128))
+# Writes the lowest nbits of val to the ith chunk of bits nbits in size in array
+# E.g. unsafe_writebits!(A, UInt64, Val(11), 3, typemax(UInt64))
 # writes exactly 11 ones to the 23:33rd bits of A
 function unsafe_writebits!(array::Array{UInt8}, T::Type{<:Unsigned}, ::Val{nbits}, i, val) where {nbits}
     bitoffset = (i-1)*nbits
@@ -348,9 +342,10 @@ function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
         return fingerprint == filter.ejected
     end
 
+    # Attempt to push fingerprint to primary index
     success = putinfilter!(filter, index, fingerprint)
     if success
-        return true
+        return nothing
     end
 
     # If there is no MAX_KICKS, inserting into a full filter will be an infinite
@@ -359,14 +354,15 @@ function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
         index = otherindex(filter, index, fingerprint)
         success = putinfilter!(filter, index, fingerprint)
         if success
-            return true
+            return nothing
         end
+        # Replace fingerprint with ejected fingerprint
         fingerprint = kick!(filter, index, fingerprint, rand(1:4))
     end
 
     filter.ejected = fingerprint
     filter.ejectedindex = index
-    return true
+    return nothing
 end
 
 """
@@ -394,7 +390,8 @@ end
     in(item, filter::AbstractCuckooFilter)
 
 Check if an item is in the cuckoo filter. This can sometimes erroneously return
-`true`, but never erroneously returns `false`.
+`true`, but never erroneously returns `false`, unless a `pop!` operation has been
+performed on the filter.
 """
 function Base.in(x, filter::AbstractCuckooFilter{F}) where {F}
     fingerprint = imprint(x, eltype(filter))
@@ -469,7 +466,7 @@ function Base.union!(dst::AbstractCuckooFilter{F}, src::AbstractCuckooFilter{F})
             unsafe_setindex!(dst, srcbucket, index)
         # Else we just insert each nonzero fingerprint from the bucket
         else
-            for fingerprint in srcbucket
+            for fingerprint in srcbucket # this skips empty fingerprints
                 success = pushfingerprint(dst, fingerprint, index)
                 if !success
                     return (dst, false)
@@ -547,7 +544,7 @@ end
 function stats(T::Type{<:AbstractCuckooFilter{F}}, nfingerprints) where {F}
     fpr = fprof(T)
     nbuckets = nfingerprints >>> 2
-    mem = 42 + (((nbuckets)-1)*F) >>> 1 + sizeof(Bucket)
+    mem = 42 + (((nbuckets)-1)*F) >>> 1 + sizeof(eltype(T))
     capacity = round(Int, nfingerprints * 0.95, RoundUp)
     return (F=F, nfingerprints=nfingerprints, fpr=fpr, memory=mem, capacity=capacity)
 end
@@ -620,6 +617,4 @@ function constrain(T::Type{<:AbstractCuckooFilter}; fpr=nothing, memory=nothing,
     else
         return mem_fpr(T, memory, fpr)
     end
-end
-
 end

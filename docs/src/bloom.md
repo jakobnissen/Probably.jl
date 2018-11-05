@@ -1,7 +1,11 @@
 # Bloom filter
 _Reference: Bloom: "Space/time trade-offs in hash coding with allowable errors"_
 
-__Note: See also the page: "Cuckoo versus Bloom filters"__
+---
+
+
+!!! note
+    See also the page: [Cuckoo versus bloom filters](@ref)
 
 ## What it is
 
@@ -58,7 +62,9 @@ Base.push!(filter::BloomFilter, item...)
 
 ### Misc functions
 
-*Note: Cuckoo filters supports the following operations, which have no cuckoo-specific docstring because they behave as stated in the documentation in Base:*
+!!! note
+    Bloom filters supports the following operations, which have no bloom-specific docstring because they behave as stated in the documentation in Base:
+
 ```
 Base.copy!
 Base.copy

@@ -1,7 +1,7 @@
 # HyperLogLog
-Julia implementation of HyperLogLog with some accuracy improvements.
+_References: Original algorithm by Flajolet, Fusy, Gandouet & Meunier (DOI:10.1.1.76.4286) with some of the modifications by Heule, Nunkesser & Hall (DOI:10.1145/2452376.2452456)_
 
-This is based on the original work by Flajolet, Fusy, Gandouet & Meunier (DOI:10.1.1.76.4286) with some of the modifications by Heule, Nunkesser & Hall (DOI:10.1145/2452376.2452456)
+---
 
 ### Summary
 
@@ -38,7 +38,7 @@ length(hll) # will return something close to 100,000
 __Documentation of all methods__
 
 !!! note
-  Note: HyperLogLog supports the following operations, which have no HyperLogLog-specific docstring because they behave as stated in the documentation in Base:
+    HyperLogLog supports the following operations, which have no HyperLogLog-specific docstring because they behave as stated in the documentation in Base:
 
 ```
 Base.copy!

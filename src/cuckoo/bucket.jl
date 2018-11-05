@@ -11,6 +11,8 @@ struct Bucket128{F} <: AbstractBucket{F}
     data::UInt128
 end
 
+BucketF(::Type{<:AbstractBucket{F}}) where {F} = F
+
 Base.eltype(::Type{Bucket64{F}}) where {F} = UInt64
 Base.eltype(x::Bucket64{F}) where {F} = eltype(typeof(x))
 Base.eltype(::Type{Bucket128{F}}) where {F} = UInt128
@@ -20,30 +22,31 @@ Base.eltype(x::Bucket128{F}) where {F} = eltype(typeof(x))
 mask(T::Type{<:AbstractBucket{F}}) where {F} = eltype(T)(1) << 4F - eltype(T)(1)
 mask(x::AbstractBucket) = mask(typeof(x))
 
-# Bitwise AND with the fingermask zeros removes bits from an UInt128 that are
+# Bitwise AND with the fingermask zeros removes bits from the integer that are
 # noncoding in a fingerprint. Fingerprints themselves always have those bits zeroed.
 fingermask(T::Type{<:AbstractBucket{F}}) where {F} = eltype(T)(1) << F - eltype(T)(1)
 fingermask(x::AbstractBucket) = fingermask(typeof(x))
 
-
-# Fingerprint returns a UInt128 number in 1:2^F-1
+# Fingerprint returns an unsigned integer in 1:2^F-1
 function imprint(x, T::Type{<:AbstractBucket{F}}) where {F}
     h = hash(x, FINGERPRINT_SALT)
     fingerprint = h & UInt(1 << F - 1)
     while fingerprint == typemin(UInt64) # Must not be zero
-        h = h >>> F + 1 # We add one to avoid infinite loop
+        h = h >>> F + 1 # We add one to avoid infinite loop (h MUST be > 0)
         fingerprint = h & UInt(1 << F - 1)
     end
     return eltype(T)(fingerprint)
 end
 
 function Base.:(==)(x::AbstractBucket{F}, y::AbstractBucket{F}) where {F}
-    x.data & fingermask(x) == y.data & fingermask(y)
+    return x.data & fingermask(x) == y.data & fingermask(y)
 end
 
 Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
 
 # Sorted array of all UInt16 where each block of 4 bits are themselves sorted
+# "Encoding" more bits than 4 like this has no effect on encoding efficiency,
+# and will just make the array too big to fit in cache.
 let x = Set{UInt16}()
     for a in 0:15, b in 0:15, c in 0:15, d in 0:15
         k,m,n,p = sort!([a, b, c, d])
@@ -64,7 +67,7 @@ end
     return typeof(x)(d << 3F | c << 2F | b << F | a)
 end
 
-# # Get 4 highest bits of each fingerprint
+# Get 4 highest bits of each fingerprint
 @inline function highest_bits(x::AbstractBucket{F}) where {F}
     y = typemin(eltype(x))
     bitmask = eltype(x)(15)
@@ -85,17 +88,17 @@ end
     return y
 end
 
-# Encode to UInt128 with bits in this order: NONCODINGBITS-CODINGBITS-INDEX
+# Encode to unsigned with bits in this order: NONCODINGBITS-CODINGBITS-INDEX
 # Index is I-1 where I is the index in PREFIXES which encodes the "highbits"
-# of the decoded value
+# of the decoded value.
 @inline function encode(bucket::AbstractBucket{F}) where {F}
     sorted_bucket = sort_bucket(bucket)
     high_bits = highest_bits(sorted_bucket)
 
     # The encoded bits must be able to be zero, so here they are subtracted 1
     index = reinterpret(UInt64, searchsortedfirst(PREFIXES, high_bits) - 1)
-    result = lowest_bits(sorted_bucket)
-    result = result << 12 | eltype(bucket)(index)
+    low_bits = lowest_bits(sorted_bucket)
+    result = low_bits << 12 | eltype(bucket)(index)
     return result
 end
 
@@ -197,16 +200,16 @@ function kick!(bucket::AbstractBucket{F}, fingerprint, bucketindex::Int) where {
 end
 
 # Creates a new bucket with the fingerprint deleted from it, if it was in it
-function Base.pop!(bucket::AbstractBucket{F}, fingerprint) where {F}
+function Base.pop!(bucket::T, fingerprint) where {T<:AbstractBucket{F}} where {F}
     y = bucket.data
     if y >>> 3F & fingermask(bucket) == fingerprint
-        return Bucket{F}(y & ~(fingermask(bucket) << 3F))
+        return T(y & ~(fingermask(bucket) << 3F))
     elseif y >>> 2F & fingermask(bucket) == fingerprint
-        return Bucket{F}(y & ~(fingermask(bucket) << 2F))
+        return T(y & ~(fingermask(bucket) << 2F))
     elseif y >>> F & fingermask(bucket) == fingerprint
-        return Bucket{F}(y & ~(fingermask(bucket) << F))
+        return T(y & ~(fingermask(bucket) << F))
     elseif y & fingermask(bucket) == fingerprint
-        return Bucket{F}(y & ~fingermask(bucket))
+        return T(y & ~fingermask(bucket))
     else
         return bucket
     end

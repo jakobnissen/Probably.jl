@@ -1,20 +1,23 @@
 # Cuckoo filter
 _Reference: Fan, Andersen, Kaminsky & Mitzenmacher: "Cuckoo Filter: Practically Better Than Bloom"_
 
-__Note: See also the page: "Cuckoo versus Bloom filters"__
+---
+
+!!! note
+    See also the page: [Cuckoo versus bloom filters](@ref)
 
 ## What it is
 A cuckoo filter is conceptually similar to a bloom filter, even though the underlying algorithm is quite different.
 
 The cuckoo filter is similar to a `Set`. Hashable objects can be pushed into the filter, but objects cannot be extracted from the filter. Querying the filter, i.e. asking whether an object is in a filter is fast, but cuckoo filters has a certain probability of falsely returning `true` when querying about an object not actually in the filter. When querying an object that is in the filter, it is guaranteed to return `true`.
 
-A cuckoo filter is defined by two parameters, `F` and its length `L`. Memory usage is proportional to `F*L`, and the false positive rate is approximately proportional to `N/(2^F*L)` where N is the number of elements in the filter.
+A cuckoo filter is defined by two parameters, `F` and its length `L`. Memory usage is `F*L/2` bytes plus 50-ish bytes of overhead, and the false positive rate is approximately `9*(N/L)*(2^-F)` where N is the number of elements in the filter.
 
 ### Querying
 
-Querying time is constant for all values of N, `F` and `L`. When querying about an object in the filter, it is guaranteed to return `true`. Querying about objects not in the filter returns `true` with a probability proportional to `N/(2^F*L)`.
+Querying takes one cache access plus either 1 or 2 random memory access depending on the values of N, `F` and `L`, and so can be thought of as being constant. When querying about an object in the filter, it is guaranteed to return `true`, unless deletion operations have been done on the filrter. Querying about objects not in the filter returns `true` with a probability approximately to `9*(N/L)*(2^-F)`.
 
-In general, two distinct objects A and B will have a `1/(2^F-1)` chance of sharing so-called "fingerprints". Independently, each object is assigned two "buckets" in the range 1:L/4, and inserted in an arbitrary of the two buckets. If objects A and B share fingerprints, and object A is in one of B's buckets, the existence of A will make a query for B return `true`, even when it's not in the filter.
+In general, two distinct objects A and B will have a `1/(2^F-1)` chance of sharing so-called "fingerprints". Independently, each object is assigned two "buckets" in the range `1:L/4`, and inserted in an arbitrary of the two buckets. If objects A and B share fingerprints, and object A is in one of B's buckets, the existence of A will make a query for B return `true`, even when it's not in the filter.
 
 ### Pushing
 
@@ -67,12 +70,14 @@ Furthermore, we can also see that those particular constrains were quite unlucky
 ```@docs
 Base.in(item, filter::AbstractCuckooFilter)
 Base.push!(filter::AbstractCuckooFilter, item)
-Base.delete!(filter::AbstractCuckooFilter, item)
+Base.pop!(filter::AbstractCuckooFilter, item)
 ```
 
 ### Misc operations
 
-*Note: Cuckoo filters supports the following operations, which have no cuckoo-specific docstring because they behave as stated in the documentation in Base:*
+!!! note
+    Cuckoo filters supports the following operations, which have no cuckoo-specific docstring because they behave as stated in the documentation in Base:
+
 
 ```
 Base.copy!

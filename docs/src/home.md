@@ -1,11 +1,13 @@
 # Probably.jl Documentation
-_probabilistic data structures in Julia_
+_Probabilistic data structures in Julia_
+
+---
 
 Probably.jl provides an implementation of common probabilistic data structures that are:
 - Written in pure Julia
 - Both fast and memory-efficient
 - Good for default or casual use cases, easy to use in other projects
-- Manipulated via functions with names from Julia's Base library
+- Manipulated via functions with sensible names, often from Julia's Base library
 
 This package does __not__ attempt to:
 - Provide a wide array of of functionality
@@ -16,5 +18,5 @@ This package does __not__ attempt to:
 Probably.jl currently includes the following data structures:
  - [HyperLogLog](@ref)
  - [Cuckoo filter](@ref)
- - Count-min sketch
+ - [Count-min sketch](@ref)
  - [Bloom filter](@ref)
