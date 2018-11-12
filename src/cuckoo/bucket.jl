@@ -1,4 +1,5 @@
-# This simply creates a "new" hash function to create fingerprints.
+# hash(x, FINGERPRINT_SALT) works as a second hash function to create
+# fingerprints. Could be basically any UInt
 const FINGERPRINT_SALT = 0x7afb47f99881a598
 
 abstract type AbstractBucket{F} end
@@ -18,7 +19,7 @@ Base.eltype(x::Bucket64{F}) where {F} = eltype(typeof(x))
 Base.eltype(::Type{Bucket128{F}}) where {F} = UInt128
 Base.eltype(x::Bucket128{F}) where {F} = eltype(typeof(x))
 
-# Bitwise AND with the fingermask to removes noncoding bits from a Bucket
+# Bitwise AND with the mask to removes noncoding bits from a Bucket
 mask(T::Type{<:AbstractBucket{F}}) where {F} = eltype(T)(1) << 4F - eltype(T)(1)
 mask(x::AbstractBucket) = mask(typeof(x))
 
@@ -39,14 +40,14 @@ function imprint(x, T::Type{<:AbstractBucket{F}}) where {F}
 end
 
 function Base.:(==)(x::AbstractBucket{F}, y::AbstractBucket{F}) where {F}
-    return x.data & fingermask(x) == y.data & fingermask(y)
+    return x.data & mask(x) == y.data & mask(y)
 end
 
 Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
 
 # Sorted array of all UInt16 where each block of 4 bits are themselves sorted
-# "Encoding" more bits than 4 like this has no effect on encoding efficiency,
-# and will just make the array too big to fit in cache.
+# "Encoding" more bits than 4 like this will save no more than 4 bits total,
+# and will just make encoding/decoding operations slower.
 let x = Set{UInt16}()
     for a in 0:15, b in 0:15, c in 0:15, d in 0:15
         k,m,n,p = sort!([a, b, c, d])

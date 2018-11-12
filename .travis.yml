@@ -1,7 +1,9 @@
+language: julia
 jobs:
   include:
     - stage: "Documentation"
       julia: 1.0
+      language: julia
       os: linux
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.instantiate();

@@ -10,3 +10,7 @@ makedocs(sitename="Probably.jl", html_prettyurls=false,
         hide("Cuckoo versus bloom filters" => "cuckoo_v_bloom.md"),
         ]
         )
+
+deploydocs(
+    repo = "github.com/jakobnissen/Probably.jl.git",
+)
