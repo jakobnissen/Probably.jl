@@ -1,6 +1,9 @@
 # Probably.jl
 _Probabilistic data structures in Julia_
 
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://jakobnissen.github.io/Probably.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://jakobnissen.github.io/Probably.jl/dev)
+
 Probably.jl provides an implementation of common probabilistic data structures that are:
 - Written in pure Julia
 - Both fast and memory-efficient
