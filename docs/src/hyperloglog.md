@@ -1,41 +1,61 @@
 # HyperLogLog
-_References: Original algorithm by Flajolet, Fusy, Gandouet & Meunier (DOI:10.1.1.76.4286) with some of the modifications by Heule, Nunkesser & Hall (DOI:10.1145/2452376.2452456)_
+_References: Original algorithm: Flajolet, Fusy, Gandouet & Meunier: "Hyperloglog: The analysis of a near-optimal cardinality estimation algorithm".
+
+With some of the modifications from: Heule, Nunkesser & Hall: "HyperLogLog in practice: Algorithmic engineering of a state of the art cardinality estimation algorithm"._
 
 ---
 
-### Summary
+## What it is
 
-An HLL is a very memory-efficient datastructure that keeps track of approximately how many distinct, hashable elements it's seen. A default HLL uses 16 KiB of memory and can return reliable estimates of up to some very large cardinality (on the order of 2^59 distinct elements).
+An HyperLogLog is a very memory-efficient datastructure that keeps track of approximately how many distinct, hashable elements it's seen. A default HLL uses 16 KiB of memory and can return reliable estimates of up to some very large cardinality (on the order of 2^59 distinct elements).
 
-This estimate of cardinality, has a median error of 0.5 %, and a 99 % chance of having an error less than 2.5 %, when the cardinality estimate is >1024. To accurately keep track of datasets smaller than 1024, use another datastructure like a `Set`.
+This estimate of cardinality has a median error of 0.5 %, and a 99 % chance of having an error less than 2.5 %, when the cardinality estimate is >1024. To accurately keep track of datasets smaller than 1024, use another datastructure like a `Set`.
 
-This implementation is not optimally memory-efficient, but they are fast. More advanced tricks can be found in the Heule et al. paper linked above, which increases accuracy and lowers memory usage for small N.
+This implementation is not optimally memory-efficient, but it is fast. More advanced tricks can be found in the Heule et al. paper linked above, which increases accuracy and lowers memory usage for small N.
 
 The HLLs are not guaranteed to be threadsafe. To parallelize this implementation of HLL, each process/thread must operate on independent HLLs. These can then be efficiently merged using `union` or `union!` (or `∪`). This is much faster than using atomic operations.
 
-### Usage
+## Usage example
 
-__Simple usage__
+In this example, let's say I'm given 133 million [fastq-sequences](https://en.wikipedia.org/wiki/FASTQ_format) from a large sequencing project of Neanderthal bones. 133 million reads sounds like a lot, so, I'm worried that the lab folk went a little overboard on the PCR and the same reads are present in many copies. Hence, I want to know how many unique reads there are.
+I don't care that the HyperLogLog doesn't fit in the cache, so I'll crank the `P` parameter up to 18 and spend the 256 KiB memory to maximize accuracy:
 
 ```
-# Create an empty HLL with precision P (higher is more precise)
-hll = HyperLogLog{P}()
-
-# Create an empty HLL with precision 14 (default precision)
-hll = HyperLogLog()
-
-# Add a hashable elements to the HLL. This is fast if the hashing is fast.
-push!(hll, "some element")
-
-for i in 1:100000
-  push!(hll, i)
+hll = HyperLogLog{18}()
+reader = FASTQ.Reader(open("huge_file.fastq", "r"))
+for record in reader
+    seq = sequence(record) # we want a hashable DNA sequence    
+    push!(hll, seq)
 end
+println("Number of distinct FASTQ-sequences: ", length(hll))
+```  
 
-# Get an estimate for the number of distinct elements in the HLL. Less fast.
-length(hll) # will return something close to 100,000
+## Interface
+
+### Construction
+
+The accuracy of a HLL depends on its `P` parameter. You can construct a HLL with its `P` parameter directly:
+
+```
+julia> hll = HyperLogLog{14}()
+HyperLogLog{14}()
 ```
 
-__Documentation of all methods__
+A P-value of 14 is considered default, so if you don't pass the parameter, 14 is assumed as default:
+
+```
+julia> HyperLogLog{14}() == HyperLogLog()
+true
+```
+
+### Central functions
+
+```@docs
+Base.push!(x::HyperLogLog, val)
+Base.length(x::HyperLogLog)
+```
+
+### Misc functions
 
 !!! note
     HyperLogLog supports the following operations, which have no HyperLogLog-specific docstring because they behave as stated in the documentation in Base:
@@ -47,8 +67,6 @@ Base.sizeof # This one includes the underlying array
 ```
 
 ```@docs
-Base.push!(x::HyperLogLog, val)
-Base.length(x::HyperLogLog)
 Base.isempty(x::HyperLogLog)
 Base.empty!(x::HyperLogLog)
 Base.union!(dest::HyperLogLog{P}, src::HyperLogLog{P}) where {P}

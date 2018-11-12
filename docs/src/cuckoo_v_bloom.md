@@ -33,13 +33,3 @@ Two cuckoo filters cannot be merged if they do not have the same parameters. Eve
 Both bloom and cuckoo filters have nonzero but insignificant memory overhead. Almost all the memory consumed go to storing the encoded data.
 
 Cuckoo filters use slightly fewer bits per element to achieve a given false positive rate. On the other hand, cuckoo filters can only have a size that is a power-of-two. This means that given a specific maximal memory available, a bloom filter may fit the desired memory usage better than a cuckoo filter, and thus have a larger possible capacity.
-
-Insert graph here
-
-### Insertion performance
-
-Insert graph here
-
-### Querying performance
-
-Insert graph here

@@ -164,24 +164,6 @@ function Base.push!(hll::HyperLogLog, values...)
     return hll
 end
 
-"""
-    append!(hll:HyperLogLog, iterable)
-
-Adds each element of `iterable` to  the HLL.
-
-# Examples
-```
-julia> it = rand(1000); hll = HyperLogLog(); consume!(hll, it); length(hll)
-995
-```
-"""
-function Base.append!(hll::HyperLogLog, iterable)
-    for i in iterable
-        push!(hll, i)
-    end
-end
-
-
 # This corrects for systematic bias in the harmonic mean, see original paper.
 function α(x::HyperLogLog{P}) where {P}
     if P == 4

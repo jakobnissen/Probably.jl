@@ -3,7 +3,6 @@ struct BloomFilter
     data::BitArray{1}
 
     function BloomFilter(len, k)
-        # This contraint doubles speed due to & vs % operation in `increment!`
         if len < 1 || k < 1
             throw(ArgumentError("Must have len ≥ 1 and k ≥ 1"))
         end
@@ -82,10 +81,20 @@ function loadfactor(filter::BloomFilter)
     return ones / length(filter.data)
 end
 
-# This is an estimate
+"""
+    length(filter::BloomFilter) -> Float64
+
+Provide an *estimate* of the number of distinct elements in the filter. This
+may return `Inf` if the filter is entirely full.
+
+# Examples
+```
+julia> a = BloomFilter(10000, 4); for i in 1:5000 push!(a, i) end; length(a)
+4962.147247984721
+```
+"""
 function Base.length(filter::BloomFilter)
-    estimate =  (length(filter.data)/filter.k) * abs(log(1 - loadfactor(filter)))
-    return trunc(Int, estimate)
+    return (length(filter.data)/filter.k) * abs(log(1 - loadfactor(filter)))
 end
 
 """

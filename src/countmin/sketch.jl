@@ -27,7 +27,7 @@ struct CountMinSketch{T<:Unsigned}
         if len < 1 || ntables < 2
             throw(ArgumentError("Must have len ≥ 1 ntables ≥ 2"))
         end
-        return new(len, ntables, zeros(T, len, ntables))
+        return new(len, ntables, zeros(T, (Int(len), Int(ntables))))
     end
 end
 
@@ -69,10 +69,10 @@ julia> sketch["hello"]
 5
 ```
 """
-function add!(sketch::CountMinSketch{T}, x, count) where {T}
+function add!(sketch::CountMinSketch, x, count)
     # Do not allow negative additions or a count higher than typemax(T)
     # This will screw up saturating arithmetic and guaranteed lower bound.
-    count = convert(T, count)
+    count = convert(eltype(sketch), count)
     initial = hash(x) # initial hash if it's expensive
     increment!(sketch, initial, 1, count)
     for ntable in 2:sketch.width
@@ -94,7 +94,7 @@ julia> sketch["hello"]
 1
 ```
 """
-Base.push!(sketch::CountMinSketch{T}, x) where {T} = add!(sketch, x, one(T))
+Base.push!(sketch::CountMinSketch, x) = add!(sketch, x, one(eltype(sketch)))
 
 function Base.append!(sketch::CountMinSketch, iterable)
     for i in iterable
@@ -110,14 +110,24 @@ Check if sketch[val] > 0.
 Base.haskey(sketch::CountMinSketch, x) = sketch[x] > 0
 Base.eltype(sketch::CountMinSketch{T}) where {T} = T
 Base.size(sketch::CountMinSketch) = (sketch.len, sketch.width)
-Base.sizeof(sketch::CountMinSketch{T}) where {T} = 16 + sizeof(sketch.matrix)
+Base.sizeof(sketch::CountMinSketch) = 16 + sizeof(sketch.matrix)
 
-function Base.empty!(sketch::CountMinSketch{T}) where {T}
-    fill!(sketch.matrix, zero(T))
+"""
+    empty!(sketch::CountMinSketch)
+
+Reset counts of all items to zero, returning the sketch to initial state.
+"""
+function Base.empty!(sketch::CountMinSketch)
+    fill!(sketch.matrix, zero(eltype(T)))
     return sketch
 end
 
-Base.isempty(sketch::CountMinSketch{T}) where {T} = all(i == zero(T) for i in sketch.matrix[:,1])
+"""
+    isempty(sketch::CountMinSketch)
+
+Check if no items have been added to the sketch.
+"""
+Base.isempty(sketch::CountMinSketch) = all(i == zero(eltype(T)) for i in sketch.matrix[:,1])
 
 function Base.copy!(dst::CountMinSketch{T}, src::CountMinSketch{T}) where {T}
     if dst.len != src.len || dst.width != src.width
@@ -127,11 +137,28 @@ function Base.copy!(dst::CountMinSketch{T}, src::CountMinSketch{T}) where {T}
     return dst
 end
 
-function Base.copy(sketch::CountMinSketch{T}) where {T}
-    newsketch = CountMinSketch{T}(sketch.len, sketch.width)
+function Base.copy(sketch::CountMinSketch)
+    newsketch = typeof(sketch)(sketch.len, sketch.width)
     return copy!(newsketch, sketch)
 end
 
+"""
+    +(x::CountMinSketch, y::CountMinSketch)
+
+Add two count-min sketches together. Will not work if `x` and `y` do not share
+parameters `T`, `length` and `width`. The result will be a sketch with the summed
+counts of the two input sketches.
+
+# Examples
+```
+julia> x, y = CountMinSketch(1000, 4), CountMinSketch(1000, 4);
+
+julia> add!(x, "hello", 4); add!(y, "hello", 19);
+
+julia> z = x + y; Int(z["hello"])
+23
+```
+"""
 function Base.:+(x::CountMinSketch{T}, y::CountMinSketch{T}) where {T}
     if x.len != y.len || x.width != y.width
         throw(ArgumentError("Sketches must have same dimensions"))
@@ -145,23 +172,29 @@ end
 
 
 """
-    collisionrate(sketch::CountMinSketch)
+    fprof(sketch::CountMinSketch)
 
 Estimate the probability of miscounting an element in the sketch.
 """
-function fprof(sketch::CountMinSketch{T}) where {T}
+function fprof(sketch::CountMinSketch)
     rate = 1
     for col in 1:x.width
         full_in_row = 0
         for row in 1:sketch.len
-            full_in_row += x.matrix[row, col] > zero(T)
+            full_in_row += x.matrix[row, col] > zero(eltype(T))
         end
         rate *= full_in_row / sketch.len
     end
     return rate
 end
 
-function Base.getindex(sketch::CountMinSketch{T}, x) where {T}
+"""
+    getindex(sketch::CountMinSketch, item)
+
+Get the estimated count of `item`. This is never underestimated, but may be
+overestimated.
+"""
+function Base.getindex(sketch::CountMinSketch, x)
     initial = hash(x) # initial hash if it's expensive
     @inbounds count = sketch.matrix[index(sketch, initial), 1]
     for ntable in 2:sketch.width

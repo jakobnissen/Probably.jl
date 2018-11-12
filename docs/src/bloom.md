@@ -3,7 +3,6 @@ _Reference: Bloom: "Space/time trade-offs in hash coding with allowable errors"_
 
 ---
 
-
 !!! note
     See also the page: [Cuckoo versus bloom filters](@ref)
 
@@ -15,17 +14,41 @@ A bloom filter is parameterized by two parameters, its length, `m` and the param
 
 Bloom filters have infinite capacity, but their false positive rates asymptotically approach 1 as more objects are added. The capacity given for a bloom filter by this package refers to the number of distinct elements at which the expected false positive rate is below a given threshold.
 
-### Pushing
-
-Pushing time is constant and does not change the memory usage of the bloom filter. All hashable object can be pushed to the filter.
-
-### Querying
+### Querying (`in`)
 
 Querying time is constant. A filter with parameters `m` and `k` containing `N` distinct object has an expected false positive rate of `(1-exp(-k*N/m))^k`.
+
+### Pushing (`push!`)
+
+Pushing time is constant and does not change the memory usage of the bloom filter. All hashable object can be pushed to the filter.
 
 ### Deletion
 
 Bloom filters do not support deletion.
+
+## Usage example
+
+Let's use the same example as for the Cuckoo filter:
+Again, I have a stream of [kmers](https://en.wikipedia.org/wiki/K-mer) that I want to count. Of course I use BioJulia, so these kmers are represented by a `DNAKmer{31}` object. I suspect my stream has up to 2 billion different kmers, so keeping a counting Dict would use up all my memory. However, most kmers are measurement errors that only appear once and that I do not need spend memory on keeping count of. So I keep track of which kmers I've seen using a Cuckoo filter. If I see a kmer more than once, I add it to the Dict.
+
+```
+params = constrain(BloomFilter, fpr=0.02, capacity=2_000_000_000)
+if params.memory > 4e9 # I'm only comfortable using 4 GB of memory for this
+    error("Too little memory :(")
+end
+filter = BloomFilter(params.m, params.k)
+counts = Dict{Kmer, UInt8}() # Don't need to count higher than 255
+
+for kmer in each(DNAKmer{31}, fastq_parser)
+    if kmer in filter
+        # Only add kmers we've seen before
+        count = min(0xfe, get(counts, kmer, 0x01)) # No integer overflow
+        counts[kmer] = count + 0x01
+    else
+        push!(filter, kmer)
+    end
+end
+```
 
 ## Interface
 
@@ -68,13 +91,14 @@ Base.push!(filter::BloomFilter, item...)
 ```
 Base.copy!
 Base.copy
+Base.union!
+Base.union
 Base.sizeof # This one includes the underlying array
 ```
 
 ```@docs
+Base.length(filter::BloomFilter)
 Base.isempty(filter::BloomFilter)
 Base.empty!(filter::BloomFilter)
-Base.union!
-Base.union
 constrain(::Type{BloomFilter}; fpr, memory, capacity)
 ```
