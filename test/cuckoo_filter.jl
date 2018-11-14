@@ -14,10 +14,9 @@
 for T in (FastCuckoo{12}, SmallCuckoo{12})
     x = T(1<<10)
     @test x.nbuckets === 1<<8
-    @test x.ejected === UInt128(0)
+    @test x.ejected === UInt64(0)
     @test x.ejectedindex === UInt64(0)
     @test x.mask == UInt64((1 << 8) - 1)
-    @test length(x.data) == (1<<8)*6 + 10
 end
 
 end
@@ -25,8 +24,8 @@ end
 @testset "Misc" begin
 x = FastCuckoo{12}(1<<4)
 y = SmallCuckoo{12}(1<<4)
-@test eltype(x) == Probably.Bucket{12}
-@test eltype(y) == Probably.Bucket{13}
+@test eltype(x) == Probably.Bucket64{12}
+@test eltype(y) == Probably.Bucket64{13}
 end
 
 @testset "Equality and hasing" begin
@@ -101,10 +100,10 @@ end
 @testset "Indexing and assigning" begin
 for T in (FastCuckoo{12}, SmallCuckoo{11})
     x = T(1 << 10)
-    @test x[1] == Probably.Bucket{12}(0)
-    @test x[end] == Probably.Bucket{12}(0)
-    @test x[x.nbuckets] == Probably.Bucket{12}(0)
-    @test x[lastindex(x)] == Probably.Bucket{12}(0)
+    @test x[1] == Probably.Bucket64{12}(0)
+    @test x[end] == Probably.Bucket64{12}(0)
+    @test x[x.nbuckets] == Probably.Bucket64{12}(0)
+    @test x[lastindex(x)] == Probably.Bucket64{12}(0)
 
     alternate_index_ok = true
     for i in 1:100
@@ -120,7 +119,7 @@ for T in (FastCuckoo{12}, SmallCuckoo{11})
     setting_index_ok = true
     for i in 1:100
         pos = rand(1:1 << 8)
-        r = rand(UInt128)
+        r = rand(UInt64)
         b = inefficient_sort_bucket(r, 12)
         x[pos] = b
         b2 = x[pos]

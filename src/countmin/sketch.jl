@@ -118,7 +118,7 @@ Base.sizeof(sketch::CountMinSketch) = 16 + sizeof(sketch.matrix)
 Reset counts of all items to zero, returning the sketch to initial state.
 """
 function Base.empty!(sketch::CountMinSketch)
-    fill!(sketch.matrix, zero(eltype(T)))
+    fill!(sketch.matrix, zero(eltype(sketch)))
     return sketch
 end
 
@@ -127,7 +127,7 @@ end
 
 Check if no items have been added to the sketch.
 """
-Base.isempty(sketch::CountMinSketch) = all(i == zero(eltype(T)) for i in sketch.matrix[:,1])
+Base.isempty(sketch::CountMinSketch) = all(i == zero(eltype(sketch)) for i in sketch.matrix[:,1])
 
 function Base.copy!(dst::CountMinSketch{T}, src::CountMinSketch{T}) where {T}
     if dst.len != src.len || dst.width != src.width
@@ -181,7 +181,7 @@ function fprof(sketch::CountMinSketch)
     for col in 1:x.width
         full_in_row = 0
         for row in 1:sketch.len
-            full_in_row += x.matrix[row, col] > zero(eltype(T))
+            full_in_row += x.matrix[row, col] > zero(eltype(sketch))
         end
         rate *= full_in_row / sketch.len
     end

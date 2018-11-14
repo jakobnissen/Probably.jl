@@ -97,13 +97,12 @@ end
     high_bits = highest_bits(sorted_bucket)
 
     # The encoded bits must be able to be zero, so here they are subtracted 1
+    # If not, an empty (all-zero) bucket cannot be decoded.
     index = reinterpret(UInt64, searchsortedfirst(PREFIXES, high_bits) - 1)
     low_bits = lowest_bits(sorted_bucket)
     result = low_bits << 12 | eltype(bucket)(index)
     return result
 end
-
-
 
 # Exactly inverse of encode.
 @inline function decode(x, T::Type{<:AbstractBucket{F}}) where {F}
@@ -186,7 +185,6 @@ function putinbucket!(bucket::AbstractBucket{F}, fingerprint) where {F}
     end
     return typeof(bucket)(y), success
 end
-
 
 # Insert value into bucket, kicking out existing value.
 # Returns bucket, kicked_out_fingerprint
