@@ -5,7 +5,7 @@ makedocs(
     sitename = "Probably.jl",
     html_prettyurls = false,
     pages = [
-        "Home" => "home.md",
+        "Home" => "index.md",
         "HyperLogLog" => "hyperloglog.md",
         "Count-min sketch" => "countmin.md",
         "Cuckoo filter" => "cuckoo.md",
