@@ -1,7 +1,7 @@
 var documenterSearchIndex = {"docs": [
 
 {
-    "location": "home.html#",
+    "location": "index.html#",
     "page": "Home",
     "title": "Home",
     "category": "page",
@@ -9,7 +9,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "home.html#Probably.jl-Documentation-1",
+    "location": "index.html#Probably.jl-Documentation-1",
     "page": "Home",
     "title": "Probably.jl Documentation",
     "category": "section",
@@ -17,7 +17,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "home.html#Package-features-1",
+    "location": "index.html#Package-features-1",
     "page": "Home",
     "title": "Package features",
     "category": "section",
