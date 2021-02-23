@@ -1,9 +1,8 @@
 using Documenter, Probably
 
 makedocs(
-    format = :html,
     sitename = "Probably.jl",
-    html_prettyurls = false,
+    format = Documenter.HTML(),
     pages = [
         "Home" => "index.md",
         "HyperLogLog" => "hyperloglog.md",
