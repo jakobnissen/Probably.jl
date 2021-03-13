@@ -16,8 +16,10 @@ z = CountMinSketch(1000, 5)
 
 @test x.len == 5000
 @test x.width == 20
+@test size(x) == (5000, 20)
 @test y.len == 1000
 @test y.width == 5
+@test size(y) == (1000, 5)
 @test typeof(y) === typeof(z)
 
 @test eltype(y) === eltype(z) == UInt8
@@ -90,7 +92,9 @@ end
 
 @testset "Adding and retrieval" begin
 x = CountMinSketch(1000, 4)
+@test !haskey(x, 15)
 add!(x, 15, 7)
+@test haskey(x, 15)
 @test x[15] == 7 # Exact with only one
 
 d = Dict(rand(Int)=>rand(10:15) for i in 1:100)
@@ -111,4 +115,26 @@ end
 add!(x, 15, 250)
 @test x[15] == 255
 end
+
+@testset "Combining sketches" begin
+for _ = 1:10
+    x = CountMinSketch{UInt32}(1000, 4)
+    y = CountMinSketch{UInt32}(1000, 4)
+    range, count = 1:5, 10_000
+
+    append!(x, rand(range) for _ = 1:count)
+    z = x + y
+    @test all((z[i] == x[i] + y[i]) for i = range)
+
+    append!(y, rand(range) for _ = 1:count)
+    z = x + y
+    @test all((z[i] == x[i] + y[i]) for i = range)
+end
+
+# Combining sketches should fail if the two sketches have different dimensions
+# or different eltypes.
+@test_throws ArgumentError (CountMinSketch(100, 4) + CountMinSketch(101, 4))
+@test_throws ArgumentError (CountMinSketch(100, 4) + CountMinSketch(100, 5))
+end
+
 end # module
