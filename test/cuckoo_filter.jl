@@ -28,6 +28,36 @@ y = SmallCuckoo{12}(1<<4)
 @test eltype(y) == Probably.Bucket64{13}
 end
 
+@testset "Push!" begin
+for T in (FastCuckoo, SmallCuckoo)
+    params = constrain(T, fpr=0.001, capacity=100)
+    x = T{params.F}(params.nfingerprints)
+    
+    rands = rand(10)
+    @test all(!(r in x) for r in rands)
+    
+    for r in rands
+        @test push!(x, r)
+    end
+    
+    @test all(r in x for r in rands)
+    
+    # Try pushing multiple values at once
+    rands = rand(5)
+    @test push!(x, rands...)
+    @test all(r in x for r in rands)
+    
+    # A push! into a full cuckoo filter should fail and return false
+    # We test this by filling the filter well beyond capacity...
+    for r in rand(5_000)
+        push!(x, r)
+    end
+    
+    # ... and then trying to push another item into the filter
+    @test !(push!(x, rand()))
+end
+end
+
 @testset "Equality and hasing" begin
 for T in (FastCuckoo{12}, SmallCuckoo{12})
     x = T(1<<10)
@@ -132,7 +162,9 @@ end
 @testset "Pop!" begin
 for T in (FastCuckoo{12}, SmallCuckoo{11})
     x = T(1 << 10)
-    values = Set(rand(Int8, 100)) # No duplicates!
+    # Sometimes one pop can delete other values
+    # but for these it should work
+    values = 1:50
     for v in values
         push!(x, v)
     end
