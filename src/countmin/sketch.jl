@@ -46,12 +46,12 @@ function Base.show(io::IO, sketch::CountMinSketch{T}) where {T}
     print(io, "CountMinSketch{$T}", size(sketch.matrix))
 end
 
-index(x, h) = reinterpret(Int, Core.Intrinsics.urem_int(h, reinterpret(UInt64, x.len))) + 1
+index(len, h) = reinterpret(Int, Core.Intrinsics.urem_int(h, reinterpret(UInt64, len))) + 1
 safeadd(x::T, y::T) where {T} = ifelse(x + y ≥ x, x + y, typemax(T))
 
 @inline function increment!(sketch::CountMinSketch{T}, h::UInt64, table::Int, count::T) where {T}
-    @inbounds existing = sketch.matrix[index(sketch, h), table]
-    @inbounds sketch.matrix[index(sketch, h), table] = safeadd(existing, count)
+    @inbounds existing = sketch.matrix[index(sketch.len, h), table]
+    @inbounds sketch.matrix[index(sketch.len, h), table] = safeadd(existing, count)
     return nothing
 end
 
@@ -73,10 +73,10 @@ function add!(sketch::CountMinSketch, x, count)
     # Do not allow negative additions or a count higher than typemax(T)
     # This will screw up saturating arithmetic and guaranteed lower bound.
     count = convert(eltype(sketch), count)
-    initial = hash(x) # initial hash if it's expensive
-    increment!(sketch, initial, 1, count)
+    h = hash(x) # h hash if it's expensive
+    increment!(sketch, h, 1, count)
     for ntable in 2:sketch.width
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(h, reinterpret(UInt64, ntable))
         increment!(sketch, h, ntable, count)
     end
     return sketch
@@ -96,9 +96,9 @@ julia> sketch["hello"]
 """
 Base.push!(sketch::CountMinSketch, x) = add!(sketch, x, one(eltype(sketch)))
 
-function Base.append!(sketch::CountMinSketch, iterable)
-    for i in iterable
-        push!(sketch, i)
+function Base.push!(sketch::CountMinSketch, x...)
+    for x in vcat(x...)
+        push!(sketch, x)
     end
 end
 
@@ -178,10 +178,10 @@ Estimate the probability of miscounting an element in the sketch.
 """
 function fprof(sketch::CountMinSketch)
     rate = 1
-    for col in 1:x.width
+    for col in 1:sketch.width
         full_in_row = 0
         for row in 1:sketch.len
-            full_in_row += x.matrix[row, col] > zero(eltype(sketch))
+            full_in_row += sketch.matrix[row, col] > zero(eltype(sketch))
         end
         rate *= full_in_row / sketch.len
     end
@@ -195,11 +195,11 @@ Get the estimated count of `item`. This is never underestimated, but may be
 overestimated.
 """
 function Base.getindex(sketch::CountMinSketch, x)
-    initial = hash(x) # initial hash if it's expensive
-    @inbounds count = sketch.matrix[index(sketch, initial), 1]
+    h = hash(x)
+    @inbounds count = sketch.matrix[index(sketch.len, h), 1]
     for ntable in 2:sketch.width
-        h = hash(initial, reinterpret(UInt64, ntable))
-        @inbounds m = sketch.matrix[index(sketch, h), ntable]
+        h = hash(h, reinterpret(UInt64, ntable))
+        @inbounds m = sketch.matrix[index(sketch.len, h), ntable]
         count = min(count, m)
     end
     return count
