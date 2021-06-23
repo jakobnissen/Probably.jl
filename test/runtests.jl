@@ -1,4 +1,4 @@
-module TestHyperLogLog
+module TestProbably
 
 using Test
 using Probably

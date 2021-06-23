@@ -53,7 +53,7 @@ end
 Add one or more hashable items to the bloom filter.
 """
 function Base.push!(filter::BloomFilter, x...)
-    for i in x
+    for i in vcat(x...)
         push!(filter, i)
     end
 end
