@@ -38,10 +38,10 @@ end
 end
 
 function Base.push!(filter::BloomFilter, x)
-    initial = hash(x) # initial hash if it's expensive
-    bitset!(filter, initial)
+    h = hash(x) # initial hash if it's expensive
+    bitset!(filter, h)
     for ntable in 2:filter.k
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(h, reinterpret(UInt64, ntable))
         bitset!(filter, h)
     end
     return x
@@ -65,11 +65,11 @@ Determine if item is in bloom filter. This sometimes returns `true` when the cor
 answer is `false`, but never returns `false` when the correct answer is `true`.
 """
 function Base.in(x, filter::BloomFilter)
-    initial = hash(x) # initial hash if it's expensive
-    y = bitget(filter, initial)
+    h = hash(x) # initial hash if it's expensive
+    y = bitget(filter, h)
     y == false && return false
     for ntable in 2:filter.k
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(h, reinterpret(UInt64, ntable))
         y = bitget(filter, h)
         y == false && return false
     end
