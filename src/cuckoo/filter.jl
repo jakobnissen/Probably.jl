@@ -354,7 +354,7 @@ function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
     # Attempt to push fingerprint to primary index
     success = putinfilter!(filter, index, fingerprint)
     if success
-        return nothing
+        return true
     end
 
     # Kick the fingerprint around until we find an empty spot, or MAX_KICKS has
@@ -363,7 +363,7 @@ function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
         index = otherindex(filter, index, fingerprint)
         success = putinfilter!(filter, index, fingerprint)
         if success
-            return nothing
+            return true
         end
         # Replace fingerprint with ejected fingerprint
         fingerprint = kick!(filter, index, fingerprint, rand(1:4))
@@ -371,7 +371,7 @@ function pushfingerprint(filter::AbstractCuckooFilter, fingerprint, index)
 
     filter.ejected = fingerprint
     filter.ejectedindex = index
-    return nothing
+    return false
 end
 
 """
@@ -388,7 +388,7 @@ end
 
 function Base.push!(filter::AbstractCuckooFilter, x...)
     success = true
-    for i in x
+    for i in vcat(x...)
         success &= push!(filter, i)
     end
     return success

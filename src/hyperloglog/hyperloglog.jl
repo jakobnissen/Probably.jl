@@ -157,8 +157,8 @@ function Base.push!(hll::HyperLogLog, x)
     return hll
 end
 
-function Base.push!(hll::HyperLogLog, values...)
-    for value in values
+function Base.push!(hll::HyperLogLog, x...)
+    for value in vcat(x...)
         push!(hll, value)
     end
     return hll
