@@ -178,10 +178,10 @@ Estimate the probability of miscounting an element in the sketch.
 """
 function fprof(sketch::CountMinSketch)
     rate = 1
-    for col in 1:x.width
+    for col in 1:sketch.width
         full_in_row = 0
         for row in 1:sketch.len
-            full_in_row += x.matrix[row, col] > zero(eltype(sketch))
+            full_in_row += sketch.matrix[row, col] > zero(eltype(sketch))
         end
         rate *= full_in_row / sketch.len
     end
