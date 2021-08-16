@@ -168,7 +168,9 @@ for T in (FastCuckoo{12}, SmallCuckoo{11})
     end
     pop_ok = true
     for v in values
-        pop_ok &= v in x
+        pop_ok &= (v in x)
+    end
+    for v in values
         pop!(x, v)
         pop_ok &= !(v in x)
     end
