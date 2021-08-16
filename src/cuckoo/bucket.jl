@@ -1,6 +1,6 @@
 # hash(x, FINGERPRINT_SALT) works as a second hash function to create
 # fingerprints. Could be basically any UInt
-const FINGERPRINT_SALT = 0x7afb47f99881a598
+const FINGERPRINT_SALT = 0x7afb47f99881a598 % UInt
 
 abstract type AbstractBucket{F} end
 
@@ -31,10 +31,10 @@ fingermask(x::AbstractBucket) = fingermask(typeof(x))
 # Fingerprint returns an unsigned integer in 1:2^F-1
 function imprint(x, T::Type{<:AbstractBucket{F}}) where {F}
     h = hash(x, FINGERPRINT_SALT)
-    fingerprint = h & UInt(1 << F - 1)
-    while fingerprint == typemin(UInt64) # Must not be zero
+    fingerprint = h & unsigned(1 << F - 1)
+    while fingerprint == typemin(UInt) # Must not be zero
         h = h >>> F + 1 # We add one to avoid infinite loop (h MUST be > 0)
-        fingerprint = h & UInt(1 << F - 1)
+        fingerprint = h & unsigned(1 << F - 1)
     end
     return eltype(T)(fingerprint)
 end
@@ -98,7 +98,7 @@ end
 
     # The encoded bits must be able to be zero, so here they are subtracted 1
     # If not, an empty (all-zero) bucket cannot be decoded.
-    index = reinterpret(UInt64, searchsortedfirst(PREFIXES, high_bits) - 1)
+    index = reinterpret(UInt, searchsortedfirst(PREFIXES, high_bits) - 1)
     low_bits = lowest_bits(sorted_bucket)
     result = low_bits << 12 | eltype(bucket)(index)
     return result
@@ -108,7 +108,7 @@ end
 @inline function decode(x, T::Type{<:AbstractBucket{F}}) where {F}
     lowbitmask = fingermask(T) >>> 4
     highbitmask = eltype(T)(15)
-    @inbounds high_bits = PREFIXES[x & UInt64(4095) + 1]
+    @inbounds high_bits = PREFIXES[x & UInt(4095) + 1]
     low_bits = x >>> 12
     result = typemin(eltype(T))
     for i in 1:4

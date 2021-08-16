@@ -129,13 +129,13 @@ julia> a = HyperLogLog{14}(); (length(a), isempty(a))
 """
 Base.isempty(x::HyperLogLog) = all(i == 0x00 for i in x.counts)
 
-# A 64 bit hash is split, the first P bits is the bin index, the other bits the observation
-getbin(hll::HyperLogLog{P}, x::UInt) where {P} = x >>> (64 - P) + 1
+# An UInt-sized hash is split, the first P bits is the bin index, the other bits the observation
+getbin(hll::HyperLogLog{P}, x::UInt) where {P} = x >>> (8*sizeof(UInt) - P) + 1
 
 # Get number of trailing zeros + 1. We use the mask to prevent number of zeros
 # from being overestimated due to any zeros in the bin part of the UInt
 function getzeros(hll::HyperLogLog{P}, x::UInt) where {P}
-    or_mask = ((UInt(1) << P) - 1) << (64 - P)
+    or_mask = ((UInt(1) << P) - 1) << (8*sizeof(UInt) - P)
     return trailing_zeros(x | or_mask) + 1
 end
 

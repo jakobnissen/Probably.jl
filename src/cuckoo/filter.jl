@@ -75,10 +75,10 @@ for fingerprints. `F` must be in 4:32 and `len` a positive power-of-two.
 Memory consumption is approximately 64 + `len` * `F` / 2 bytes.
 """
 mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
-    nbuckets::Int64
-    mask::UInt64
-    ejected::UInt64 # Fingerprint ejected from filter (guarantees no false negatives)
-    ejectedindex::UInt64
+    nbuckets::Int
+    mask::UInt
+    ejected::UInt # Fingerprint ejected from filter (guarantees no false negatives)
+    ejectedindex::UInt
     data::Vector{UInt8}
 
     function FastCuckoo{F}(len::Int) where {F}
@@ -91,8 +91,8 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
         data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
-        mask = UInt64(nbuckets) - 1
-        new(nbuckets, mask, typemin(UInt64), typemin(UInt64), data_array)
+        mask = UInt(nbuckets) - 1
+        new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
 end
 
@@ -107,10 +107,10 @@ Because of the memory-saving bucket encoding used, a `SmallCuckoo{F}` contains
 Memory consumption is approximately 64 + `len` * `F` / 2 bytes.
 """
 mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
-    nbuckets::Int64
-    mask::UInt64
-    ejected::UInt64 # Fingerprint ejected from filter (guarantees no false negatives)
-    ejectedindex::UInt64
+    nbuckets::Int
+    mask::UInt
+    ejected::UInt # Fingerprint ejected from filter (guarantees no false negatives)
+    ejectedindex::UInt
     data::Vector{UInt8}
 
     function SmallCuckoo{F}(len::Int) where {F}
@@ -123,8 +123,8 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
         data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
-        mask = UInt64(nbuckets) - 1
-        new(nbuckets, mask, typemin(UInt64), typemin(UInt64), data_array)
+        mask = UInt(nbuckets) - 1
+        new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
 end
 
@@ -175,7 +175,7 @@ function Base.:(==)(x::AbstractCuckooFilter{F}, y::AbstractCuckooFilter{F}) wher
     return x.ejected == y.ejected && x.ejectedindex == y.ejectedindex && x.data == y.data
 end
 
-function Base.hash(x::AbstractCuckooFilter, y::UInt64=typemin(UInt64))
+function Base.hash(x::AbstractCuckooFilter, y::UInt=typemin(UInt))
     hash((x.data, x.ejected, x.ejectedindex), y)
 end
 
@@ -207,8 +207,8 @@ true
 ```
 """
 function Base.empty!(x::AbstractCuckooFilter)
-    x.ejected = typemin(UInt64)
-    x.ejectedindex = typemin(UInt64)
+    x.ejected = typemin(UInt)
+    x.ejectedindex = typemin(UInt)
     fill!(x.data, 0x00)
     return x
 end
@@ -258,14 +258,14 @@ end
 # Should be depedent on i and fingerprint and be inbounds. Furthermore, must
 # always hold that otherindex(x, otherindex(x, i, f), f) == i.
 # It's this latter property that constrains filters to having power-of-two len.
-function otherindex(filter::AbstractCuckooFilter, i::UInt64, fingerprint)
+function otherindex(filter::AbstractCuckooFilter, i::UInt, fingerprint)
     return ((i - 1) ⊻ hash(fingerprint)) & filter.mask + 1
 end
 
 valof(::Val{x}) where {x} = x
 
 # This reads the i'th chunk of bits each of size nbits from array into a T.
-# E.g. unsafe_readbits(A, UInt64, Val(11), 3) reads the 23:86rd bits of A to a UInt64
+# E.g. unsafe_readbits(A, UInt, Val(11), 3) reads the 23:86rd bits of A to a UInt
 function unsafe_readbits(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i)
     nbits = valof(v)
     bitoffset = (i-1)*nbits
@@ -286,7 +286,7 @@ function unsafe_getindex(x::SmallCuckoo{F}, i) where {F}
 end
 
 # Writes the first nbits of val to the ith chunk of bits nbits in size in array
-# E.g. unsafe_writebits!(A, UInt64, Val(11), 3, typemax(UInt64))
+# E.g. unsafe_writebits!(A, UInt, Val(11), 3, typemax(UInt))
 # writes exactly 11 ones to the 23:33rd bits of A
 function unsafe_writebits!(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i, val)
     nbits = valof(v)
@@ -447,11 +447,11 @@ function Base.pop!(filter::AbstractCuckooFilter{F}, key) where {F}
 
     # Having deleted an object, we can "open" a closed filter
     # by pushing the ejected value back into the buckets and zeroing the ejected
-    if filter.ejected != typemin(UInt64)
+    if filter.ejected != typemin(UInt)
         sucess = pushfingerprint(filter, filter.ejected, filter.ejectedindex)
         if sucess
-            filter.ejected = typemin(UInt64)
-            filter.ejectedindex = typemin(UInt64)
+            filter.ejected = typemin(UInt)
+            filter.ejectedindex = typemin(UInt)
         end
     end
     return filter
@@ -477,7 +477,7 @@ function Base.union!(dst::AbstractCuckooFilter{F}, src::AbstractCuckooFilter{F})
         else
             for fingerprint in srcbucket # this skips empty fingerprints
                 pushfingerprint(dst, fingerprint, index)
-                if dst.ejected != typemin(UInt64)
+                if dst.ejected != typemin(UInt)
                     return (dst, false)
                 end
             end

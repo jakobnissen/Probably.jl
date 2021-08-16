@@ -14,9 +14,9 @@
 for T in (FastCuckoo{12}, SmallCuckoo{12})
     x = T(1<<10)
     @test x.nbuckets === 1<<8
-    @test x.ejected === UInt64(0)
-    @test x.ejectedindex === UInt64(0)
-    @test x.mask == UInt64((1 << 8) - 1)
+    @test x.ejected === UInt(0)
+    @test x.ejectedindex === UInt(0)
+    @test x.mask == UInt((1 << 8) - 1)
 end
 
 end
@@ -149,7 +149,7 @@ for T in (FastCuckoo{12}, SmallCuckoo{11})
     setting_index_ok = true
     for i in 1:100
         pos = rand(1:1 << 8)
-        r = rand(UInt64)
+        r = rand(UInt)
         b = inefficient_sort_bucket(r, 12)
         x[pos] = b
         b2 = x[pos]
