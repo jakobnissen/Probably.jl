@@ -41,7 +41,7 @@ function Base.push!(filter::BloomFilter, x)
     initial = hash(x) # initial hash if it's expensive
     bitset!(filter, initial)
     for ntable in 2:filter.k
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(initial, hash(reinterpret(UInt64, ntable)))
         bitset!(filter, h)
     end
     return x
@@ -69,7 +69,7 @@ function Base.in(x, filter::BloomFilter)
     y = bitget(filter, initial)
     y == false && return false
     for ntable in 2:filter.k
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(initial, hash(reinterpret(UInt64, ntable)))
         y = bitget(filter, h)
         y == false && return false
     end
