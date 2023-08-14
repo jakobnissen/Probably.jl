@@ -10,19 +10,19 @@ function randbucket(F)
     b = String[]
     for i in 1:4
         if rand() < 0.2
-            push!(b, string(typemin(UInt128), base=2, pad=F))
+            push!(b, string(typemin(UInt128); base=2, pad=F))
         else
-            s = string(rand_fingerprint(F), base=2, pad=F)
+            s = string(rand_fingerprint(F); base=2, pad=F)
             while s in b
-                s = string(rand_fingerprint(F), base=2, pad=F)
+                s = string(rand_fingerprint(F); base=2, pad=F)
             end
             push!(b, s)
         end
     end
     if F > 16
-        return Probably.Bucket128{F}(parse(UInt128, join(b), base=2))
+        return Probably.Bucket128{F}(parse(UInt128, join(b); base=2))
     else
-        return Probably.Bucket64{F}(parse(UInt128, join(b), base=2))
+        return Probably.Bucket64{F}(parse(UInt128, join(b); base=2))
     end
 end
 
@@ -30,33 +30,33 @@ function inefficient_sort_bucket(x, F)
     T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
     mask = Probably.fingermask(T) # already tested elsewhere
     a, b, c, d = x & mask, x >> F & mask, x >> 2F & mask, x >> 3F & mask
-    a, b, c, d = Tuple(sort([a,b,c,d]))
+    a, b, c, d = Tuple(sort([a, b, c, d]))
     return T(d << 3F | c << 2F | b << F | a)
 end
 
 function inefficient_high_bits(x, F)
     T = ifelse(F > 16, UInt128, UInt64)
     r = String[]
-    s = string(x, base=2, pad=128)
+    s = string(x; base=2, pad=128)
     for i in 1:4
-        push!(r, s[end-i*F+1:end-i*F+4])
+        push!(r, s[(end - i * F + 1):(end - i * F + 4)])
     end
     st = join(r)
-    return parse(T, st, base=2)
+    return parse(T, st; base=2)
 end
 
 function inefficient_low_bits(x, F)
     T = ifelse(F > 16, UInt128, UInt64)
     r = String[]
-    s = string(x, base=2, pad=128)
+    s = string(x; base=2, pad=128)
     for i in 1:4
-        push!(r, s[end-i*F+4+1:end-i*F+F])
+        push!(r, s[(end - i * F + 4 + 1):(end - i * F + F)])
     end
     st = join(r)
     if isempty(st)
         return typemin(T)
     else
-        return parse(T, st, base=2)
+        return parse(T, st; base=2)
     end
 end
 
@@ -74,74 +74,74 @@ function test_putinbucket!(bucketdata, F)
 end
 
 @testset "Misc Cuckoo Bucket" begin
-mask_ok = true
-for F in 1:32
-    T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
-    T2 = ifelse(F > 16, UInt128, UInt64)
-    x = rand(T2)
-    mask_ok &= Probably.mask(T(x)) == parse(T2, "f"^F, base=16)
-end
-@test mask_ok
+    mask_ok = true
+    for F in 1:32
+        T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
+        T2 = ifelse(F > 16, UInt128, UInt64)
+        x = rand(T2)
+        mask_ok &= Probably.mask(T(x)) == parse(T2, "f"^F; base=16)
+    end
+    @test mask_ok
 
-fingermask_ok = true
-for F in 1:32
-    T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
-    T2 = ifelse(F > 16, UInt128, UInt64)
-    fingermask_ok &= Probably.fingermask(T) == parse(T2, "1"^F, base=2)
-end
-@test fingermask_ok
+    fingermask_ok = true
+    for F in 1:32
+        T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
+        T2 = ifelse(F > 16, UInt128, UInt64)
+        fingermask_ok &= Probably.fingermask(T) == parse(T2, "1"^F; base=2)
+    end
+    @test fingermask_ok
 end # Misc Cuckoo Bucket
 
 @testset "Imprint" begin
-fingerprint_ok = true
-for i in 1:100
-    fingerprint_ok &= Probably.imprint(rand(Int), Probably.Bucket64{4}) != zero(UInt64)
-end
-@test fingerprint_ok
+    fingerprint_ok = true
+    for i in 1:100
+        fingerprint_ok &= Probably.imprint(rand(Int), Probably.Bucket64{4}) != zero(UInt64)
+    end
+    @test fingerprint_ok
 end # Imprint
 
 @testset "Sort_bucket" begin
-sort_bucket_ok = true
-for i in 1:100
-    F = rand(4:32)
-    T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
-    T2 = ifelse(F > 16, UInt128, UInt64)
-    x = rand(T2)
-    sort_bucket_ok &= Probably.sort_bucket(T(x)) == inefficient_sort_bucket(x, F)
-end
-@test sort_bucket_ok
+    sort_bucket_ok = true
+    for i in 1:100
+        F = rand(4:32)
+        T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
+        T2 = ifelse(F > 16, UInt128, UInt64)
+        x = rand(T2)
+        sort_bucket_ok &= Probably.sort_bucket(T(x)) == inefficient_sort_bucket(x, F)
+    end
+    @test sort_bucket_ok
 end # Sort_bucket
 
 @testset "High & low bits" begin
-highest_bits_ok = true
-for i in 1:100
-    F = rand(4:32)
-    T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
-    T2 = ifelse(F > 16, UInt128, UInt64)
-    x = rand(T2)
-    given = Probably.highest_bits(T(x))
-    trueval = inefficient_high_bits(x, F)
-    highest_bits_ok &= given == trueval
-end
-@test highest_bits_ok
+    highest_bits_ok = true
+    for i in 1:100
+        F = rand(4:32)
+        T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
+        T2 = ifelse(F > 16, UInt128, UInt64)
+        x = rand(T2)
+        given = Probably.highest_bits(T(x))
+        trueval = inefficient_high_bits(x, F)
+        highest_bits_ok &= given == trueval
+    end
+    @test highest_bits_ok
 
-lowest_bits_ok = true
-for i in 1:100
-    F = rand(4:32)
-    T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
-    T2 = ifelse(F > 16, UInt128, UInt64)
-    x = rand(T2)
-    given = Probably.lowest_bits(T(x))
-    trueval = inefficient_low_bits(x, F)
-    lowest_bits_ok &= given == trueval
-end
-@test lowest_bits_ok
+    lowest_bits_ok = true
+    for i in 1:100
+        F = rand(4:32)
+        T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
+        T2 = ifelse(F > 16, UInt128, UInt64)
+        x = rand(T2)
+        given = Probably.lowest_bits(T(x))
+        trueval = inefficient_low_bits(x, F)
+        lowest_bits_ok &= given == trueval
+    end
+    @test lowest_bits_ok
 end # High & low bits
 
 @testset "Prefixes" begin
-@test issorted(Probably.PREFIXES)
-@test length(Probably.PREFIXES) == 3876
-@test length(Set(Probably.PREFIXES)) == 3876
+    @test issorted(Probably.PREFIXES)
+    @test length(Probably.PREFIXES) == 3876
+    @test length(Set(Probably.PREFIXES)) == 3876
 end
 
 @testset "Encoding/decoding" begin
@@ -157,7 +157,7 @@ end
         encoding = Probably.encode(T(x))
         decoding = Probably.decode(encoding, T)
 
-        mask = ~(T2(1) << (4*(F-1)) - T2(1))
+        mask = ~(T2(1) << (4 * (F - 1)) - T2(1))
 
         encode_lessbits &= encoding & mask == T2(0)
         encode_sameresult &= before == decoding
@@ -178,7 +178,7 @@ end # Encoding/decoding
         pos = rand(1:4)
         insert = rand() < 0.5
         if insert
-            x |= f << (F*(pos-1))
+            x |= f << (F * (pos - 1))
         end
 
         membership_ok &= insert == (f in T(x))
@@ -234,8 +234,8 @@ end # put in bucket
         x = rand(T2)
         pos = rand(1:4)
         b = T(x)
-        mask = Probably.fingermask(T) << ((4-pos)*F)
-        oldf = (x & mask) >> ((4-pos)*F)
+        mask = Probably.fingermask(T) << ((4 - pos) * F)
+        oldf = (x & mask) >> ((4 - pos) * F)
         newf = rand_fingerprint(F)
         newbucket, oldf2 = Probably.kick!(b, newf, pos)
         kick_bucket_ok &= oldf2 == oldf && newf in newbucket
@@ -251,14 +251,14 @@ end # testset kick bucket
         T = ifelse(F > 16, Probably.Bucket128{F}, Probably.Bucket64{F})
         T2 = ifelse(F > 16, UInt128, UInt64)
         pos = rand(1:4)
-        mask = Probably.fingermask(T) << ((4-pos)*F)
+        mask = Probably.fingermask(T) << ((4 - pos) * F)
         b = randbucket(F)
         x = b.data
-        f = (x & mask) >> ((4-pos)*F)
+        f = (x & mask) >> ((4 - pos) * F)
         while f == T2(0)
             b = randbucket(F)
             x = b.data
-            f = (x & mask) >> ((4-pos)*F)
+            f = (x & mask) >> ((4 - pos) * F)
         end
         pop_bucket_ok &= f in b
         newbucket = pop!(b, f)

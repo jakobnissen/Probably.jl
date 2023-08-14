@@ -18,12 +18,12 @@ julia> sketch["hello"]
 6
 ```
 """
-struct CountMinSketch{T<:Unsigned}
+struct CountMinSketch{T <: Unsigned}
     len::Int # Cached for speed
     width::Int # Cached for speed
     matrix::Matrix{T}
 
-    function CountMinSketch{T}(len, ntables) where {T<:Unsigned}
+    function CountMinSketch{T}(len, ntables) where {T <: Unsigned}
         if len < 1 || ntables < 2
             throw(ArgumentError("Must have len ≥ 1 ntables ≥ 2"))
         end
@@ -37,7 +37,7 @@ function Base.:(==)(x::CountMinSketch{T}, y::CountMinSketch{T}) where {T}
     if x.len != y.len || x.width != y.width
         return false
     end
-    return all(i == j for (i,j) in zip(x.matrix, y.matrix))
+    return all(i == j for (i, j) in zip(x.matrix, y.matrix))
 end
 
 Base.:(==)(x::CountMinSketch{T1}, y::CountMinSketch{T2}) where {T1, T2} = false
@@ -49,7 +49,12 @@ end
 index(x, h) = signed(Core.Intrinsics.urem_int(h, unsigned(x.len))) + 1
 safeadd(x::T, y::T) where {T} = ifelse(x + y ≥ x, x + y, typemax(T))
 
-@inline function increment!(sketch::CountMinSketch{T}, h::UInt, table::Int, count::T) where {T}
+@inline function increment!(
+    sketch::CountMinSketch{T},
+    h::UInt,
+    table::Int,
+    count::T,
+) where {T}
     @inbounds existing = sketch.matrix[index(sketch, h), table]
     @inbounds sketch.matrix[index(sketch, h), table] = safeadd(existing, count)
     return nothing
@@ -75,7 +80,7 @@ function add!(sketch::CountMinSketch, x, count)
     count = convert(eltype(sketch), count)
     initial = hash(x) # initial hash if it's expensive
     increment!(sketch, initial, 1, count)
-    for ntable in 2:sketch.width
+    for ntable in 2:(sketch.width)
         h = hash(initial, unsigned(ntable))
         increment!(sketch, h, ntable, count)
     end
@@ -96,11 +101,10 @@ julia> sketch["hello"]
 """
 Base.push!(sketch::CountMinSketch, x) = add!(sketch, x, one(eltype(sketch)))
 
-function Base.append!(sketch::CountMinSketch, iterable)
+Base.append!(sketch::CountMinSketch, iterable) =
     for i in iterable
         push!(sketch, i)
     end
-end
 
 """
     haskey(sketch::CountMinSketch)
@@ -127,7 +131,9 @@ end
 
 Check if no items have been added to the sketch.
 """
-Base.isempty(sketch::CountMinSketch) = all(i == zero(eltype(sketch)) for i in sketch.matrix[:,1])
+function Base.isempty(sketch::CountMinSketch)
+    all(i == zero(eltype(sketch)) for i in sketch.matrix[:, 1])
+end
 
 function Base.copy!(dst::CountMinSketch{T}, src::CountMinSketch{T}) where {T}
     if dst.len != src.len || dst.width != src.width
@@ -170,7 +176,6 @@ function Base.:+(x::CountMinSketch{T}, y::CountMinSketch{T}) where {T}
     return summed
 end
 
-
 """
     fprof(sketch::CountMinSketch)
 
@@ -178,9 +183,9 @@ Estimate the probability of miscounting an element in the sketch.
 """
 function fprof(sketch::CountMinSketch)
     rate = 1
-    for col in 1:sketch.width
+    for col in 1:(sketch.width)
         full_in_row = 0
-        for row in 1:sketch.len
+        for row in 1:(sketch.len)
             full_in_row += sketch.matrix[row, col] > zero(eltype(sketch))
         end
         rate *= full_in_row / sketch.len
@@ -197,7 +202,7 @@ overestimated.
 function Base.getindex(sketch::CountMinSketch, x)
     initial = hash(x) # initial hash if it's expensive
     @inbounds count = sketch.matrix[index(sketch, initial), 1]
-    for ntable in 2:sketch.width
+    for ntable in 2:(sketch.width)
         h = hash(initial, unsigned(ntable))
         @inbounds m = sketch.matrix[index(sketch, h), ntable]
         count = min(count, m)

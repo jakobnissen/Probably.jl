@@ -50,11 +50,11 @@ Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
 # and will just make encoding/decoding operations slower.
 let x = Set{UInt16}()
     for a in 0:15, b in 0:15, c in 0:15, d in 0:15
-        k,m,n,p = sort!([a, b, c, d])
+        k, m, n, p = sort!([a, b, c, d])
         y = UInt16(k) << 12 | UInt16(m) << 8 | UInt16(n) << 4 | UInt16(p)
         push!(x, y)
     end
-    global const PREFIXES = collect(x)
+    const global PREFIXES = collect(x)
     sort!(PREFIXES)
 end
 
@@ -72,20 +72,20 @@ end
 @inline function highest_bits(x::AbstractBucket{F}) where {F}
     y = typemin(eltype(x))
     bitmask = eltype(x)(15)
-    y = (y << 4) | (x.data >>> (F-4) & bitmask)
-    y = (y << 4) | (x.data >>> (2F-4) & bitmask)
-    y = (y << 4) | (x.data >>> (3F-4) & bitmask)
-    y = (y << 4) | (x.data >>> (4F-4) & bitmask)
+    y = (y << 4) | (x.data >>> (F - 4) & bitmask)
+    y = (y << 4) | (x.data >>> (2F - 4) & bitmask)
+    y = (y << 4) | (x.data >>> (3F - 4) & bitmask)
+    y = (y << 4) | (x.data >>> (4F - 4) & bitmask)
 end
 
 # # Get the F-4 lowest bits of each fingerprint
 @inline function lowest_bits(x::AbstractBucket{F}) where {F}
     y = typemin(eltype(x))
     bitmask = fingermask(x) >>> 4
-    y = (y << (F-4)) | (x.data & bitmask)
-    y = (y << (F-4)) | (x.data >>> F & bitmask)
-    y = (y << (F-4)) | (x.data >>> 2F & bitmask)
-    y = (y << (F-4)) | (x.data >>> 3F & bitmask)
+    y = (y << (F - 4)) | (x.data & bitmask)
+    y = (y << (F - 4)) | (x.data >>> F & bitmask)
+    y = (y << (F - 4)) | (x.data >>> 2F & bitmask)
+    y = (y << (F - 4)) | (x.data >>> 3F & bitmask)
     return y
 end
 
@@ -113,9 +113,9 @@ end
     result = typemin(eltype(T))
     for i in 1:4
         result = result << 4 | (high_bits & highbitmask)
-        result = result << (F-4) | (low_bits & lowbitmask)
+        result = result << (F - 4) | (low_bits & lowbitmask)
         high_bits >>>= 4
-        low_bits >>>= (F-4)
+        low_bits >>>= (F - 4)
     end
     return T(result)
 end
@@ -124,7 +124,7 @@ function showfingerprint(fingerprint, ::Val{F}) where {F}
     if fingerprint == typemin(fingerprint)
         return " "^cld(F, 4)
     else
-        return string(fingerprint, base=16, pad=cld(F, 4))
+        return string(fingerprint; base=16, pad=cld(F, 4))
     end
 end
 
@@ -156,9 +156,9 @@ function Base.iterate(bucket::AbstractBucket{F}, state=(bucket.data, 1)) where {
     else
         fingerprint = data & fingermask(bucket)
         if fingerprint == typemin(eltype(bucket))
-            return iterate(bucket, (data >>> F, i+1))
+            return iterate(bucket, (data >>> F, i + 1))
         else
-            return fingerprint, (data >>> F, i+1)
+            return fingerprint, (data >>> F, i + 1)
         end
     end
 end
@@ -173,10 +173,12 @@ function putinbucket!(bucket::AbstractBucket{F}, fingerprint) where {F}
     if y >>> 3F & fingermask(bucket) == min || y >>> 3F & fingermask(bucket) == fingerprint
         y = y | fingerprint << 3F
         success = true
-    elseif y >>> 2F & fingermask(bucket) == min || y >>> 2F & fingermask(bucket) == fingerprint
+    elseif y >>> 2F & fingermask(bucket) == min ||
+           y >>> 2F & fingermask(bucket) == fingerprint
         y = y | fingerprint << 2F
         success = true
-    elseif y >>> F & fingermask(bucket) == min || y >>> F & fingermask(bucket) == fingerprint
+    elseif y >>> F & fingermask(bucket) == min ||
+           y >>> F & fingermask(bucket) == fingerprint
         y = y | fingerprint << F
         success = true
     elseif y & fingermask(bucket) == min || y & fingermask(bucket) == fingerprint
@@ -190,7 +192,7 @@ end
 # Returns bucket, kicked_out_fingerprint
 function kick!(bucket::AbstractBucket{F}, fingerprint, bucketindex::Int) where {F}
     y = bucket.data
-    shift = 4F - bucketindex*F
+    shift = 4F - bucketindex * F
     mask = fingermask(bucket) << shift
     existing = (y & mask) >>> shift
     y &= ~mask # Zero out bits of existing fingerprint
@@ -199,7 +201,7 @@ function kick!(bucket::AbstractBucket{F}, fingerprint, bucketindex::Int) where {
 end
 
 # Creates a new bucket with the fingerprint deleted from it, if it was in it
-function Base.pop!(bucket::T, fingerprint) where {T<:AbstractBucket{F}} where {F}
+function Base.pop!(bucket::T, fingerprint) where {T <: AbstractBucket{F}} where {F}
     y = bucket.data
     if y >>> 3F & fingermask(bucket) == fingerprint
         return T(y & ~(fingermask(bucket) << 3F))
