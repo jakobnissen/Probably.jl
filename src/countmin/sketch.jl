@@ -46,10 +46,10 @@ function Base.show(io::IO, sketch::CountMinSketch{T}) where {T}
     print(io, "CountMinSketch{$T}", size(sketch.matrix))
 end
 
-index(x, h) = reinterpret(Int, Core.Intrinsics.urem_int(h, reinterpret(UInt64, x.len))) + 1
+index(x, h) = signed(Core.Intrinsics.urem_int(h, unsigned(x.len))) + 1
 safeadd(x::T, y::T) where {T} = ifelse(x + y ≥ x, x + y, typemax(T))
 
-@inline function increment!(sketch::CountMinSketch{T}, h::UInt64, table::Int, count::T) where {T}
+@inline function increment!(sketch::CountMinSketch{T}, h::UInt, table::Int, count::T) where {T}
     @inbounds existing = sketch.matrix[index(sketch, h), table]
     @inbounds sketch.matrix[index(sketch, h), table] = safeadd(existing, count)
     return nothing
@@ -76,7 +76,7 @@ function add!(sketch::CountMinSketch, x, count)
     initial = hash(x) # initial hash if it's expensive
     increment!(sketch, initial, 1, count)
     for ntable in 2:sketch.width
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(initial, unsigned(ntable))
         increment!(sketch, h, ntable, count)
     end
     return sketch
@@ -198,7 +198,7 @@ function Base.getindex(sketch::CountMinSketch, x)
     initial = hash(x) # initial hash if it's expensive
     @inbounds count = sketch.matrix[index(sketch, initial), 1]
     for ntable in 2:sketch.width
-        h = hash(initial, reinterpret(UInt64, ntable))
+        h = hash(initial, unsigned(ntable))
         @inbounds m = sketch.matrix[index(sketch, h), ntable]
         count = min(count, m)
     end
