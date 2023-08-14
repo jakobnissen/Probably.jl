@@ -38,7 +38,7 @@ end
 function Base.push!(filter::BloomFilter, x)
     initial = hash(x) # initial hash if it's expensive
     bitset!(filter, initial)
-    for ntable in 2:filter.k
+    for ntable in 2:(filter.k)
         h = hash(initial, hash(unsigned(ntable)))
         bitset!(filter, h)
     end
@@ -50,11 +50,10 @@ end
 
 Add one or more hashable items to the bloom filter.
 """
-function Base.push!(filter::BloomFilter, x...)
+Base.push!(filter::BloomFilter, x...) =
     for i in x
         push!(filter, i)
     end
-end
 
 """
     in(item, filter::BloomFilter)
@@ -66,7 +65,7 @@ function Base.in(x, filter::BloomFilter)
     initial = hash(x) # initial hash if it's expensive
     y = bitget(filter, initial)
     y == false && return false
-    for ntable in 2:filter.k
+    for ntable in 2:(filter.k)
         h = hash(initial, hash(unsigned(ntable)))
         y = bitget(filter, h)
         y == false && return false
@@ -92,7 +91,7 @@ julia> a = BloomFilter(10000, 4); for i in 1:5000 push!(a, i) end; length(a)
 ```
 """
 function Base.length(filter::BloomFilter)
-    return (length(filter.data)/filter.k) * abs(log(1 - loadfactor(filter)))
+    return (length(filter.data) / filter.k) * abs(log(1 - loadfactor(filter)))
 end
 
 """
@@ -101,9 +100,7 @@ end
 Determine if bloom filter is empty, i.e. has no elements in it.
 This is guaranteed to be correct, but does not mean the fitler consumes no RAM.
 """
-function Base.isempty(filter::BloomFilter)
-    return !any(filter.data)
-end
+Base.isempty(filter::BloomFilter) = !any(filter.data)
 
 """
     empty!(filter::BloomFilter)
@@ -139,13 +136,13 @@ function mem_fpr(::Type{BloomFilter}, mem, fpr)
     mem -= (mem - 24) % 8 # nearest UInt64
     m = 8 * (mem - 24) # bytes to bits
     m < 64 && throw(ArgumentError("Too little memory"))
-    n = round(Int, -log(2)*log(2)*m/log(fpr), RoundDown) # approximate n
-    k = round(Int, log(2)*m/n) # optimize k with n and m
-    _fpr = (1 - exp(-k*n/m))^k
+    n = round(Int, -log(2) * log(2) * m / log(fpr), RoundDown) # approximate n
+    k = round(Int, log(2) * m / n) # optimize k with n and m
+    _fpr = (1 - exp(-k * n / m))^k
     while _fpr > fpr # Now fine-tune n
         n -= 10
         n < 1 && throw(ArgumentError("Too little memory"))
-        _fpr = (1 - exp(-k*n/m))^k
+        _fpr = (1 - exp(-k * n / m))^k
     end
     return (m=m, k=k, fpr=_fpr, memory=mem, capacity=n)
 end
@@ -155,12 +152,12 @@ function capacity_fpr(::Type{BloomFilter}, capacity, fpr)
     m = round(Int, capacity * log(fpr) / (-log(2) * log(2)), RoundUp)
     m += 64 - m % 64 # nearest UInt64
     mem = 24 + (m >>> 3) # bits to bytes
-    k = round(Int, log(2)*m/capacity)
-    _fpr = (1 - exp(-k*n/m))^k
+    k = round(Int, log(2) * m / capacity)
+    _fpr = (1 - exp(-k * n / m))^k
     while _fpr > fpr # Fine-tune m
         m += 64
         mem += 8
-        _fpr = (1 - exp(-k*n/m))^k
+        _fpr = (1 - exp(-k * n / m))^k
     end
     return (m=m, k=k, fpr=_fpr, memory=mem, capacity=n)
 end
@@ -170,8 +167,8 @@ function mem_capacity(::Type{BloomFilter}, mem, capacity)
     mem -= mem % 8
     m = 8 * (mem - 24) # bytes to bits
     m < 64 && throw(ArgumentError("Too little memory"))
-    k = round(Int, log(2)*m/capacity)
-    fpr = (1 - exp(-k*n/m))^k
+    k = round(Int, log(2) * m / capacity)
+    fpr = (1 - exp(-k * n / m))^k
     return (m=m, k=k, fpr=fpr, memory=mem, capacity=n)
 end
 
@@ -195,7 +192,7 @@ julia> x = BloomFilter(c.m, c.k); # capacity optimized
 ```
 """
 function constrain(::Type{BloomFilter}; fpr=nothing, memory=nothing, capacity=nothing)
-    if (fpr===nothing) + (memory===nothing) + (capacity===nothing) != 1
+    if (fpr === nothing) + (memory === nothing) + (capacity === nothing) != 1
         throw(ArgumentError("Exactly one argument must be nothing"))
     elseif fpr !== nothing && fpr ≤ 0
         throw(ArgumentError("FPR must be above 0"))

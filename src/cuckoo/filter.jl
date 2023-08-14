@@ -90,7 +90,7 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
-        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
+        data_array = zeros(UInt8, ((nbuckets - 1) * F) >>> 1 + padding)
         mask = UInt(nbuckets) - 1
         new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
@@ -122,7 +122,7 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
-        data_array = zeros(UInt8, ((nbuckets-1)*F) >>> 1 + padding)
+        data_array = zeros(UInt8, ((nbuckets - 1) * F) >>> 1 + padding)
         mask = UInt(nbuckets) - 1
         new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
@@ -131,7 +131,7 @@ end
 Base.eltype(::Type{FastCuckoo{F}}) where {F} = F ≤ 16 ? Bucket64{F} : Bucket128{F}
 
 # Because of the encoding, one bit per fingerprint is saved in a SmallCuckoo
-Base.eltype(::Type{SmallCuckoo{F}}) where {F} = F ≤ 16 ? Bucket64{F+1} : Bucket128{F+1}
+Base.eltype(::Type{SmallCuckoo{F}}) where {F} = F ≤ 16 ? Bucket64{F + 1} : Bucket128{F + 1}
 
 function Base.show(io::IO, x::AbstractCuckooFilter{F}) where {F}
     print(io, lastindex(x), "-bucket ", typeof(x))
@@ -152,8 +152,8 @@ function Base.show(io::IO, ::MIME"text/plain", x::AbstractCuckooFilter{F}) where
         for i in 1:15
             println(io, ' ', x[i])
         end
-        println(' '^(5 + 2*cld(F, 4)), '⋮')
-        for i in lastindex(x)-14:lastindex(x)
+        println(' '^(5 + 2 * cld(F, 4)), '⋮')
+        for i in (lastindex(x) - 14):lastindex(x)
             println(io, ' ', x[i])
         end
     end
@@ -251,9 +251,7 @@ Base.lastindex(x::AbstractCuckooFilter) = x.nbuckets
 Base.eachindex(x::AbstractCuckooFilter) = Base.OneTo(lastindex(x))
 
 # Important here only that it's dependent on `val` and inbounds
-function primaryindex(filter::AbstractCuckooFilter, val)
-    return hash(val) & filter.mask + 1
-end
+primaryindex(filter::AbstractCuckooFilter, val) = hash(val) & filter.mask + 1
 
 # Should be depedent on i and fingerprint and be inbounds. Furthermore, must
 # always hold that otherindex(x, otherindex(x, i, f), f) == i.
@@ -268,7 +266,7 @@ valof(::Val{x}) where {x} = x
 # E.g. unsafe_readbits(A, UInt, Val(11), 3) reads the 23:86rd bits of A to a UInt
 function unsafe_readbits(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i)
     nbits = valof(v)
-    bitoffset = (i-1)*nbits
+    bitoffset = (i - 1) * nbits
     byteoffset = bitoffset >>> 3
     data = unsafe_load(Ptr{T}(pointer(array, byteoffset + 1)), 1)
     data >>>= bitoffset & 7
@@ -290,7 +288,7 @@ end
 # writes exactly 11 ones to the 23:33rd bits of A
 function unsafe_writebits!(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i, val)
     nbits = valof(v)
-    bitoffset = (i-1)*nbits
+    bitoffset = (i - 1) * nbits
     byteoffset = bitoffset >>> 3
     p = Ptr{T}(pointer(array, byteoffset + 1))
     # We overwrite the unused bits of val with bits from array in order to
@@ -394,7 +392,6 @@ function Base.push!(filter::AbstractCuckooFilter, x...)
     return success
 end
 
-
 """
     in(item, filter::AbstractCuckooFilter)
 
@@ -413,14 +410,13 @@ function Base.in(x, filter::AbstractCuckooFilter{F}) where {F}
     bucket = unsafe_getindex(filter, first_index)
     if fingerprint in bucket
         return true
-    # Finally, check the last possible place, the alternate bucket
+        # Finally, check the last possible place, the alternate bucket
     else
         alternate_index = otherindex(filter, first_index, fingerprint)
         bucket = unsafe_getindex(filter, alternate_index)
         return fingerprint in bucket
     end
 end
-
 
 """
     pop!(filter::AbstractCuckooFilter, item)
@@ -473,7 +469,7 @@ function Base.union!(dst::AbstractCuckooFilter{F}, src::AbstractCuckooFilter{F})
         # If destination bucket is empty, we copy entire source bucket
         if isempty(dstbucket)
             unsafe_setindex!(dst, srcbucket, index)
-        # Else we just insert each nonzero fingerprint from the bucket
+            # Else we just insert each nonzero fingerprint from the bucket
         else
             for fingerprint in srcbucket # this skips empty fingerprints
                 pushfingerprint(dst, fingerprint, index)
@@ -527,7 +523,7 @@ The FPR is proportional to the fullness (a.k.a load factor).
 """
 function fprof(T::Type{<:AbstractCuckooFilter{FF}}) where {FF}
     F = BucketF(eltype(T))
-    prob_avoid_ejected = (2^F-2) / (2^F-1)
+    prob_avoid_ejected = (2^F - 2) / (2^F - 1)
     # The reason this is not ((2^F-1)/(2^F-2))^4 is because each fingerprint
     # is guaranteed to be unique in that bucket.
     prob_avoid_bucket = prod((2^F - 1 - i) / (2^F - i) for i in 1:4)
@@ -553,7 +549,7 @@ end
 function stats(T::Type{<:AbstractCuckooFilter{F}}, nfingerprints) where {F}
     fpr = fprof(T)
     nbuckets = nfingerprints >>> 2
-    mem = 42 + (((nbuckets)-1)*F) >>> 1 + sizeof(eltype(T))
+    mem = 42 + (((nbuckets) - 1) * F) >>> 1 + sizeof(eltype(T))
     capacity = round(Int, nfingerprints * 0.95, RoundUp)
     return (F=F, nfingerprints=nfingerprints, fpr=fpr, memory=mem, capacity=capacity)
 end
@@ -562,7 +558,7 @@ end
 function mem_fpr(T::Type{<:AbstractCuckooFilter}, mem, fpr)
     F = minimal_f(T, fpr)
     mem -= 42 + 16 # constant overhead
-    nfingerprints = prevpow(2, 8*mem / F)
+    nfingerprints = prevpow(2, 8 * mem / F)
     if nfingerprints < 4
         throw(ArgumentError("Too little memory"))
     end
@@ -611,8 +607,13 @@ julia> fprof(x), sizeof(x), capacityof(x) # not always exactly the estimate
 (0.0005492605216655955, 234881081, 127506842)
 ```
 """
-function constrain(T::Type{<:AbstractCuckooFilter}; fpr=nothing, memory=nothing, capacity=nothing)
-    if (fpr===nothing) + (memory===nothing) + (capacity===nothing) != 1
+function constrain(
+    T::Type{<:AbstractCuckooFilter};
+    fpr=nothing,
+    memory=nothing,
+    capacity=nothing,
+)
+    if (fpr === nothing) + (memory === nothing) + (capacity === nothing) != 1
         throw(ArgumentError("Exactly one argument must be nothing"))
     elseif fpr !== nothing && fpr ≤ 0
         throw(ArgumentError("FPR must be above 0"))
