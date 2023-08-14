@@ -6,9 +6,7 @@ struct BloomFilter
         if len < 1 || k < 1
             throw(ArgumentError("Must have len ≥ 1 and k ≥ 1"))
         end
-        bitarray =  BitArray{1}(undef, len)
-        fill!(bitarray.chunks, typemin(UInt64))
-        return new(k, bitarray)
+        return new(k, falses(len))
     end
 end
 
@@ -28,20 +26,20 @@ end
 Base.show(io::IO, filter::BloomFilter) = summary(io, filter)
 
 @inline function bitset!(filter, hashvalue)
-    i = Core.Intrinsics.urem_int(hashvalue, reinterpret(UInt64, length(filter.data))) + 1
-    @inbounds filter.data[reinterpret(Int, i)] = true
+    i = Core.Intrinsics.urem_int(hashvalue, unsigned(length(filter.data))) + 1
+    @inbounds filter.data[i] = true
 end
 
 @inline function bitget(filter, hashvalue)
-    i = Core.Intrinsics.urem_int(hashvalue, reinterpret(UInt64, length(filter.data))) + 1
-    return @inbounds filter.data[reinterpret(Int, i)]
+    i = Core.Intrinsics.urem_int(hashvalue, unsigned(length(filter.data))) + 1
+    return @inbounds filter.data[i]
 end
 
 function Base.push!(filter::BloomFilter, x)
     initial = hash(x) # initial hash if it's expensive
     bitset!(filter, initial)
     for ntable in 2:filter.k
-        h = hash(initial, hash(reinterpret(UInt64, ntable)))
+        h = hash(initial, hash(unsigned(ntable)))
         bitset!(filter, h)
     end
     return x
@@ -69,7 +67,7 @@ function Base.in(x, filter::BloomFilter)
     y = bitget(filter, initial)
     y == false && return false
     for ntable in 2:filter.k
-        h = hash(initial, hash(reinterpret(UInt64, ntable)))
+        h = hash(initial, hash(unsigned(ntable)))
         y = bitget(filter, h)
         y == false && return false
     end
@@ -104,7 +102,7 @@ Determine if bloom filter is empty, i.e. has no elements in it.
 This is guaranteed to be correct, but does not mean the fitler consumes no RAM.
 """
 function Base.isempty(filter::BloomFilter)
-    return all(i == typemin(UInt64) for i in filter.data.chunks)
+    return !any(filter.data)
 end
 
 """
@@ -113,7 +111,7 @@ end
 Remove all elements from BloomFilter, resetting it to initial state.
 """
 function Base.empty!(filter::BloomFilter)
-    fill!(filter.data.chunks, typemin(UInt64))
+    fill!(filter.data, false)
     return filter
 end
 
@@ -121,7 +119,7 @@ function Base.copy!(dst::BloomFilter, src::BloomFilter)
     if length(dst.data) != length(src.data) || dst.k != src.k
         throw(ArgumentError("Length of filters must be the same."))
     end
-    copyto!(dst.data.chunks, src.data.chunks)
+    copyto!(dst.data, src.data)
     return dst
 end
 
