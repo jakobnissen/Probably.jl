@@ -162,7 +162,19 @@ end
 @testset "Pop!" begin
 for T in (FastCuckoo{12}, SmallCuckoo{11})
     x = T(1 << 10)
-    values = Set(rand(Int8, 100)) # No duplicates!
+
+    # Since Cuckoofilters' pop! can exhibit false positives,
+    # if elements have the same fingerprint, we make sure
+    # they have different ones.
+    values = Int8[]
+    fingerprints = Set{UInt}()
+    for i in rand(Int8, 128)
+        fingerprint = Probably.imprint(i, eltype(x))
+        fingerprint ∈ fingerprints && continue
+        push!(values, i)
+        push!(fingerprints, fingerprint)
+    end
+
     for v in values
         push!(x, v)
     end
