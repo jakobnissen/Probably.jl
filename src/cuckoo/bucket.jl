@@ -2,6 +2,19 @@
 # fingerprints. Could be basically any UInt
 const FINGERPRINT_SALT = 0x7afb47f99881a598 % UInt
 
+# Sorted array of all UInt16 where each block of 4 bits are themselves sorted
+# "Encoding" more bits than 4 like this will save no more than 4 bits total,
+# and will just make encoding/decoding operations slower.
+const PREFIXES = let
+    x = Set{UInt16}()
+    for a in 0:15, b in 0:15, c in 0:15, d in 0:15
+        k, m, n, p = sort!([a, b, c, d])
+        y = UInt16(k) << 12 | UInt16(m) << 8 | UInt16(n) << 4 | UInt16(p)
+        push!(x, y)
+    end
+    sort!(collect(x))
+end
+
 abstract type AbstractBucket{F} end
 
 struct Bucket64{F} <: AbstractBucket{F}
@@ -45,18 +58,7 @@ end
 
 Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
 
-# Sorted array of all UInt16 where each block of 4 bits are themselves sorted
-# "Encoding" more bits than 4 like this will save no more than 4 bits total,
-# and will just make encoding/decoding operations slower.
-let x = Set{UInt16}()
-    for a in 0:15, b in 0:15, c in 0:15, d in 0:15
-        k, m, n, p = sort!([a, b, c, d])
-        y = UInt16(k) << 12 | UInt16(m) << 8 | UInt16(n) << 4 | UInt16(p)
-        push!(x, y)
-    end
-    const global PREFIXES = collect(x)
-    sort!(PREFIXES)
-end
+
 
 # Sorts the four fingerprint in the bucket
 @inline function sort_bucket(x::AbstractBucket{F}) where {F}
