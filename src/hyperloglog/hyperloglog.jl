@@ -164,8 +164,7 @@ function Base.push!(hll::HyperLogLog, values...)
 end
 
 # This corrects for systematic bias in the harmonic mean, see original paper.
-function alpha(x::HyperLogLog{P}) where {P}
-    return if P == 4
+alpha(x::HyperLogLog{P}) where {P} = if P == 4
         0.673
     elseif P == 5
         0.697
@@ -174,7 +173,6 @@ function alpha(x::HyperLogLog{P}) where {P}
     else
         0.7213 / (1 + 1.079 / sizeof(x))
     end
-end
 
 # This accounts for systematic bias for low raw estimates.
 # From https://ai.google/research/pubs/pub40671
