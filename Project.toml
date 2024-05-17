@@ -1,7 +1,7 @@
 name = "Probably"
 uuid = "2172800d-0309-5a57-a84f-d50c94757422"
 authors = ["jakobnissen <jakobnybonissen@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [compat]
 julia = "1"
