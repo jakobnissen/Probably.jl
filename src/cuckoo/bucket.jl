@@ -58,8 +58,6 @@ end
 
 Base.:(==)(x::AbstractBucket, y::AbstractBucket) = false
 
-
-
 # Sorts the four fingerprint in the bucket
 @inline function sort_bucket(x::AbstractBucket{F}) where {F}
     a, b = minmax(x.data & fingermask(x), x.data >>> F & fingermask(x))

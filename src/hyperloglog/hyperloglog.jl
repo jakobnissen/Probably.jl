@@ -36,12 +36,12 @@ julia> empty!(hll);
 ```
 """
 struct HyperLogLog{P}
-    counts::Vector{UInt8}
+    counts::Memory{UInt8}
 
     function HyperLogLog{P}() where {P}
         isa(P, Integer) || throw(ArgumentError("P must be integer"))
         (P < 4 || P > 18) && throw(ArgumentError("P must be between 4 and 18"))
-        return new(zeros(UInt8, sizeof(HyperLogLog{P})))
+        return new(fill!(Memory{UInt8}(undef, sizeof(HyperLogLog{P})), 0x00))
     end
 end
 
