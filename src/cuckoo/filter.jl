@@ -79,7 +79,7 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
     mask::UInt
     ejected::UInt # Fingerprint ejected from filter (guarantees no false negatives)
     ejectedindex::UInt
-    data::Vector{UInt8}
+    data::Memory{UInt8}
 
     function FastCuckoo{F}(len::Int) where {F}
         if len < 4 || !ispow2(len)
@@ -90,7 +90,7 @@ mutable struct FastCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
-        data_array = zeros(UInt8, ((nbuckets - 1) * F) >>> 1 + padding)
+        data_array = fill!(Memory{UInt8}(undef, ((nbuckets - 1) * F) >>> 1 + padding), 0x00)
         mask = UInt(nbuckets) - 1
         new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
@@ -111,7 +111,7 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
     mask::UInt
     ejected::UInt # Fingerprint ejected from filter (guarantees no false negatives)
     ejectedindex::UInt
-    data::Vector{UInt8}
+    data::Memory{UInt8}
 
     function SmallCuckoo{F}(len::Int) where {F}
         if len < 4 || !ispow2(len)
@@ -122,7 +122,7 @@ mutable struct SmallCuckoo{F} <: AbstractCuckooFilter{F}
         nbuckets = len >>> 2
         # Prevents unsafe_writebits! from writing off the edge of the array.
         padding = ifelse(F ≤ 16, 8, 16)
-        data_array = zeros(UInt8, ((nbuckets - 1) * F) >>> 1 + padding)
+        data_array = fill!(Memory{UInt8}(undef, ((nbuckets - 1) * F) >>> 1 + padding), 0)
         mask = UInt(nbuckets) - 1
         new(nbuckets, mask, typemin(UInt), typemin(UInt), data_array)
     end
@@ -264,7 +264,7 @@ valof(::Val{x}) where {x} = x
 
 # This reads the i'th chunk of bits each of size nbits from array into a T.
 # E.g. unsafe_readbits(A, UInt, Val(11), 3) reads the 23:86rd bits of A to a UInt
-function unsafe_readbits(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i)
+function unsafe_readbits(array::Memory{UInt8}, T::Type{<:Unsigned}, v::Val, i)
     nbits = valof(v)
     bitoffset = (i - 1) * nbits
     byteoffset = bitoffset >>> 3
@@ -286,7 +286,7 @@ end
 # Writes the first nbits of val to the ith chunk of bits nbits in size in array
 # E.g. unsafe_writebits!(A, UInt, Val(11), 3, typemax(UInt))
 # writes exactly 11 ones to the 23:33rd bits of A
-function unsafe_writebits!(array::Array{UInt8}, T::Type{<:Unsigned}, v::Val, i, val)
+function unsafe_writebits!(array::Memory{UInt8}, T::Type{<:Unsigned}, v::Val, i, val)
     nbits = valof(v)
     bitoffset = (i - 1) * nbits
     byteoffset = bitoffset >>> 3
