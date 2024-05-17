@@ -47,7 +47,7 @@ end
 
 HyperLogLog() = HyperLogLog{14}() # This is a good value for most practical applications
 
-Base.show(io::IO, x::HyperLogLog{P}) where {P} = print(io, "HyperLogLog{$(P)}()")
+Base.show(io::IO, ::HyperLogLog{P}) where {P} = print(io, "HyperLogLog{$(P)}()")
 
 # Strangely, 2^P compiles less effectively that 1<<P here.
 Base.sizeof(::Type{HyperLogLog{P}}) where {P} = 1 << P
@@ -129,11 +129,11 @@ julia> a = HyperLogLog{14}(); (length(a), isempty(a))
 Base.isempty(x::HyperLogLog) = all(i == 0x00 for i in x.counts)
 
 # An UInt-sized hash is split, the first P bits is the bin index, the other bits the observation
-getbin(hll::HyperLogLog{P}, x::UInt) where {P} = x >>> (8 * sizeof(UInt) - P) + 1
+getbin(::HyperLogLog{P}, x::UInt) where {P} = x >>> (8 * sizeof(UInt) - P) + 1
 
 # Get number of trailing zeros + 1. We use the mask to prevent number of zeros
 # from being overestimated due to any zeros in the bin part of the UInt
-function getzeros(hll::HyperLogLog{P}, x::UInt) where {P}
+function getzeros(::HyperLogLog{P}, x::UInt) where {P}
     or_mask = ((UInt(1) << P) - 1) << (8 * sizeof(UInt) - P)
     return trailing_zeros(x | or_mask) + 1
 end
@@ -164,16 +164,17 @@ function Base.push!(hll::HyperLogLog, values...)
 end
 
 # This corrects for systematic bias in the harmonic mean, see original paper.
-α(x::HyperLogLog{P}) where {P} =
-    if P == 4
-        return 0.673
+function alpha(x::HyperLogLog{P}) where {P}
+    return if P == 4
+        0.673
     elseif P == 5
-        return 0.697
+        0.697
     elseif P == 6
-        return 0.709
+        0.709
     else
-        return 0.7213 / (1 + 1.079 / sizeof(x))
+        0.7213 / (1 + 1.079 / sizeof(x))
     end
+end
 
 # This accounts for systematic bias for low raw estimates.
 # From https://ai.google/research/pubs/pub40671
@@ -187,17 +188,17 @@ function bias(::HyperLogLog{P}, biased_estimate) where {P}
     biasarray = @inbounds BIAS_ARRAYS[P - 3]
     firstindex = searchsortedfirst(rawarray, biased_estimate)
     # Raw count large, no need for bias correction
-    if firstindex == length(rawarray) + 1
-        return 0.0
+    return if firstindex == length(rawarray) + 1
+        0.0
         # Raw count too small, cannot be corrected. Maybe raise error?
     elseif firstindex == 1
-        return @inbounds biasarray[1]
+        @inbounds biasarray[1]
         # Else linearly approximate the right value for bias
     else
         x1, x2 = @inbounds rawarray[firstindex - 1], @inbounds rawarray[firstindex]
         y1, y2 = @inbounds biasarray[firstindex - 1], @inbounds biasarray[firstindex]
         delta = @fastmath (biased_estimate - x1) / (x2 - x1) # relative distance of raw from x1
-        return y1 + delta * (y2 - y1)
+        y1 + delta * (y2 - y1)
     end
 end
 
@@ -217,6 +218,6 @@ julia> a = HyperLogLog{14}(); push!(a, 1,2,3,4,5,6,7,8); length(a)
 function Base.length(x::HyperLogLog{P}) where {P}
     # Harmonic mean estimates cardinality per bin. There are 2^P bins
     harmonic_mean = sizeof(x) / sum(1 / 1 << i for i in x.counts)
-    biased_estimate = α(x) * sizeof(x) * harmonic_mean
+    biased_estimate = alpha(x) * sizeof(x) * harmonic_mean
     return round(Int, biased_estimate - bias(x, biased_estimate))
 end
